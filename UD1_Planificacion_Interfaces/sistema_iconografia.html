@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<!-- saved from url=(0012)about:srcdoc -->
+<html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <script>
+      (function() {
+        // Capture host references before any artifact code runs: Window.parent
+        // is [Replaceable] (a top-level `var parent` in artifact code would
+        // replace the accessor with a data property), and a top-level
+        // `const crypto` would shadow the global — either would otherwise
+        // silently break the bridge for artifacts that worked before.
+        const realParent = window.parent;
+        const cryptoObj = window.crypto;
+        // html-to-image is only used by takeScreenshot: fetched on first use, not as a
+        // parser-blocking tag. Native fetch, captured before the proxy override below.
+        const realFetch = typeof window.fetch === 'function' ? window.fetch.bind(window) : null;
+        const HTML_TO_IMAGE_SRC = "https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.13/html-to-image.min.js";
+        const HTML_TO_IMAGE_INTEGRITY = "sha512-iZ2ORl595Wx6miw+GuadDet4WQbdSWS3JLMoNfY8cRGoEFy6oT3G9IbcrBeL6AfkgpA51ETt/faX6yLV+/gFJg==";
+        let htmlToImageLoad = null;
+        const loadHtmlToImage = () => {
+          if (!htmlToImageLoad) {
+            htmlToImageLoad = (realFetch
+              ? realFetch(HTML_TO_IMAGE_SRC, { integrity: HTML_TO_IMAGE_INTEGRITY, credentials: 'omit', referrerPolicy: 'no-referrer' })
+              : Promise.reject(new Error('fetch unavailable'))
+            )
+              .then((res) => {
+                if (!res.ok) throw new Error('html-to-image failed to load (' + res.status + ')');
+                return res.text();
+              })
+              .then((source) => {
+                // UMD bundle: hide the artifact's AMD/CommonJS globals so it takes the
+                // window-global branch; inline script text runs synchronously on insert.
+                const hidden = ['define', 'module', 'exports'].map((k) => {
+                  const entry = { k, own: Object.prototype.hasOwnProperty.call(window, k), v: window[k] };
+                  try { window[k] = undefined; } catch (e) {}
+                  return entry;
+                });
+                try {
+                  const el = document.createElement('script');
+                  el.text = source;
+                  (document.head || document.documentElement).appendChild(el);
+                } finally {
+                  hidden.forEach(({ k, own, v }) => {
+                    try { if (own) { window[k] = v; } else { delete window[k]; } } catch (e) {}
+                  });
+                }
+                if (!window.htmlToImage) throw new Error('html-to-image unavailable after load');
+                return window.htmlToImage;
+              });
+            // A failed load may be transient; let the next screenshot retry.
+            htmlToImageLoad.catch(() => { htmlToImageLoad = null; });
+          }
+          return htmlToImageLoad;
+        };
+        // crypto.randomUUID exists only in Secure Contexts; fall back to a
+        // unique non-crypto id elsewhere (http://LAN-IP dev flows) —
+        // uniqueness is what the bridge needs, unpredictability is
+        // defense-in-depth on top of the source guards.
+        const newRequestId =
+          cryptoObj && typeof cryptoObj.randomUUID === "function"
+            ? function () { return cryptoObj.randomUUID(); }
+            : function () { return Date.now() + "-" + Math.random(); };
+        const originalConsole = window.console;
+        window.console = {
+          log: (...args) => {
+            originalConsole.log(...args);
+            realParent.postMessage({ type: 'console', message: args.join(' ') }, '*');
+          },
+          error: (...args) => {
+            originalConsole.error(...args);
+            realParent.postMessage({ type: 'console', message: 'Error: ' + args.join(' ') }, '*');
+          },
+          warn: (...args) => {
+            originalConsole.warn(...args);
+            realParent.postMessage({ type: 'console', message: 'Warning: ' + args.join(' ') }, '*');
+          }
+        };
+
+        // Bridge request ids are crypto-random (not sequential) so they
+        // cannot be predicted by other frames in the tab.
+        let callbacksMap = new Map();
+        let streamControllers = new Map();
+        
+        window.claude = {
+          complete: (prompt) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'claudeComplete', id, prompt }, '*');
+            });
+          }
+        };
+
+        window.storage = {
+          get: (key, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageGet', id, key, shared }, '*');
+            });
+          },
+          set: (key, value, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageSet', id, key, value, shared }, '*');
+            });
+          },
+          delete: (key, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageDelete', id, key, shared }, '*');
+            });
+          },
+          list: (prefix, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageList', id, prefix, shared }, '*');
+            });
+          }
+        };
+
+        let pendingBlobs = new Map();
+        URL.createObjectURL = (blob) => {
+          // Store the blob and create an ID and URL for it
+          const blobId = `blob-${Date.now()}-${Math.random()}`;
+          pendingBlobs.set(blobId, blob);
+          return `blob-request://${blobId}`;
+        };
+
+        URL.revokeObjectURL = (url) => {
+          // Remove the blob from our store
+          const blobId = url.replace("blob-request://", "");
+          pendingBlobs.delete(blobId);
+        };
+
+        const getBlobFromURL = (url) => {
+          const blobId = url.replace("blob-request://", "");
+          return pendingBlobs.get(blobId);
+        };
+
+        // Override global fetch with streaming support
+        window.fetch = (url, init = {}) => {
+          return new Promise((resolve, reject) => {
+            const id = newRequestId();
+            const channelId = `fetch-${id}-${Date.now()}`;
+            
+            callbacksMap.set(id, { 
+              resolve: (response) => {
+                // Null-body statuses: Response(stream, {status: 204}) throws
+                // per the Fetch spec, which would escape this resolver and
+                // hang the artifact's await forever.
+                if (response.status === 204 || response.status === 205 || response.status === 304) {
+                  try {
+                    resolve(new Response(null, {
+                      status: response.status,
+                      statusText: response.statusText,
+                      headers: response.headers
+                    }));
+                  } catch (err) {
+                    // Invalid statusText/header bytes can throw here too.
+                    reject(new TypeError(
+                      'Bridge fetch: unconstructable response (status ' + response.status + ')'
+                    ));
+                  }
+                  return;
+                }
+                // Create a ReadableStream for the response body
+                const stream = new ReadableStream({
+                  start(controller) {
+                    streamControllers.set(channelId, controller);
+                  },
+                  cancel() {
+                    streamControllers.delete(channelId);
+                  }
+                });
+                
+                // Create and return the Response with the stream. Response()
+                // requires status in [200, 599]; an opaque/no-cors fetch
+                // forwards status 0, which would throw here and escape the
+                // resolver, hanging the artifact's await. Surface it as a
+                // network-error-shaped rejection instead.
+                try {
+                  resolve(new Response(stream, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers
+                  }));
+                } catch (err) {
+                  streamControllers.delete(channelId);
+                  reject(new TypeError(
+                    'Bridge fetch: unconstructable response (status ' + response.status + ')'
+                  ));
+                }
+              },
+              reject,
+              channelId
+            });
+            
+            realParent.postMessage({
+              type: 'proxyFetch',
+              id,
+              url,
+              init,
+              channelId
+            }, '*');
+          });
+        };
+
+        window.addEventListener('message', async (event) => {
+          // Only the embedding parent may drive the bridge — sibling and
+          // nested frames can also postMessage into this window.
+          if (event.source !== realParent) return;
+          if (event.data.type === 'takeScreenshot') {
+            // Echo the request's nonce so the requester can correlate the
+            // reply to ITS request — a reply without the expected nonce
+            // (e.g. from a stale pre-remount artifact) is ignored upstream.
+            const screenshotNonce = event.data.nonce;
+            const rootElement = document.getElementById('artifacts-component-root-html');
+            if (!rootElement) {
+              realParent.postMessage({
+                type: 'screenshotError',
+                nonce: screenshotNonce,
+                error: new Error('Root element not found'),
+              }, '*');
+              return;
+            }
+            // Catch CDN load failures and toPng errors so the parent always
+            // gets a response instead of hanging forever.
+            try {
+              const htmlToImage = await loadHtmlToImage();
+              const screenshot = await htmlToImage.toPng(rootElement, {
+                imagePlaceholder:
+                  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAA1JREFUGFdjePDgwX8ACOQDoNsk0PMAAAAASUVORK5CYII=",
+              });
+              realParent.postMessage({
+                type: 'screenshotData',
+                nonce: screenshotNonce,
+                data: screenshot,
+              }, '*');
+            } catch (err) {
+              realParent.postMessage({
+                type: 'screenshotError',
+                nonce: screenshotNonce,
+                error: err instanceof Error ? err : new Error(String(err)),
+              }, '*');
+            }
+          } else if (event.data.type === 'claudeComplete') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.completion);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'proxyFetchResponse') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+              callbacksMap.delete(event.data.id);
+            } else {
+              // Initial response with headers, status, etc.
+              callback.resolve({
+                status: event.data.status,
+                statusText: event.data.statusText,
+                headers: event.data.headers
+              });
+              // Don't delete the callback yet if streaming
+              if (!event.data.body) {
+                callbacksMap.delete(event.data.id);
+              }
+            }
+          } else if (event.data.type === 'proxyFetchStream') {
+            // Handle streaming data chunks
+            const controller = streamControllers.get(event.data.channelId);
+            if (controller) {
+              if (event.data.error) {
+                controller.error(new Error(event.data.error));
+                streamControllers.delete(event.data.channelId);
+              } else if (event.data.done) {
+                controller.close();
+                streamControllers.delete(event.data.channelId);
+                // Clean up the callback
+                const callback = Array.from(callbacksMap.entries()).find(
+                  ([_, value]) => value.channelId === event.data.channelId
+                );
+                if (callback) {
+                  callbacksMap.delete(callback[0]);
+                }
+              } else if (event.data.chunk) {
+                controller.enqueue(new Uint8Array(event.data.chunk));
+              }
+            }
+          } else if (event.data.type === 'storageGet') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageSet') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageDelete') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageList') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          }
+        });
+
+        window.addEventListener('click', (event) => {
+          const isEl = event.target instanceof HTMLElement;
+          if (!isEl) return;
+    
+          // find ancestor links
+          const linkEl = event.target.closest("a");
+          if (!linkEl || !linkEl.href) return;
+    
+          event.preventDefault();
+          event.stopImmediatePropagation();
+    
+          if (linkEl.href.startsWith("blob-request:")) {
+            const blob = getBlobFromURL(linkEl.href);
+            if (!blob) return;
+            void blob.arrayBuffer().then((data) => {
+              realParent.postMessage({
+                type: "downloadFile",
+                filename: linkEl.download,
+                data,
+                mimeType: blob.type || "application/octet-stream",
+              });
+            });
+          } else if (linkEl.href.startsWith("data:")) {
+            const [header, base64Data] = linkEl.href.split(",");
+            const mimeMatch = header.match(/data:([^;]+)/);
+            const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+            const binaryString = atob(base64Data);
+            const data = Uint8Array.from(binaryString, (c) =>
+              c.charCodeAt(0),
+            ).buffer;
+            realParent.postMessage({
+              type: "downloadFile",
+              filename: linkEl.download,
+              data,
+              mimeType,
+            });
+          } else {
+            let linkUrl;
+            try {
+              linkUrl = new URL(linkEl.href);
+            } catch (error) {
+              return;
+            }
+    
+            if (linkUrl.hostname === window.location.hostname) return;
+      
+            realParent.postMessage({
+              type: 'openExternal',
+              href: linkEl.href,
+            }, '*');
+          }
+      });
+
+        const originalOpen = window.open;
+        window.open = function (url) {
+          realParent.postMessage({
+            type: "openExternal",
+            href: url,
+          }, "*");
+        };
+
+        window.addEventListener('error', (event) => {
+          realParent.postMessage({ type: 'console', message: 'Uncaught Error: ' + event.message }, '*');
+        });
+      })();
+    </script>
+  
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Iconografía</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            background: #f8fafc;
+            color: #1f2937;
+        }
+        
+        .main-header {
+            background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+        }
+        
+        .main-header h1 {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 15px;
+        }
+        
+        .main-header p {
+            font-size: 18px;
+            opacity: 0.95;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .section {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            margin: 30px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .section-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .section-subtitle {
+            color: #6b7280;
+            font-size: 16px;
+            margin-bottom: 30px;
+        }
+        
+        /* LIBRARY COMPARISON */
+        .library-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin: 30px 0;
+        }
+        
+        .library-card {
+            background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 25px;
+            transition: all 0.3s;
+            position: relative;
+        }
+        
+        .library-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+            border-color: #d1d5db;
+        }
+        
+        .library-card.recommended {
+            border-color: #10b981;
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+        }
+        
+        .recommended-badge {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #10b981;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        
+        .library-name {
+            font-size: 22px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 10px;
+        }
+        
+        .library-creator {
+            font-size: 13px;
+            color: #6b7280;
+            margin-bottom: 15px;
+        }
+        
+        .library-icons-demo {
+            display: flex;
+            gap: 12px;
+            margin: 20px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            justify-content: center;
+        }
+        
+        .demo-icon {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .library-features {
+            margin: 15px 0;
+        }
+        
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #374151;
+        }
+        
+        .check-icon {
+            color: #10b981;
+            font-weight: 700;
+        }
+        
+        .library-plugin {
+            margin-top: 15px;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #6b7280;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .plugin-label {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        /* ICON STYLES */
+        .styles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+            margin: 30px 0;
+        }
+        
+        .style-card {
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+        }
+        
+        .style-demo {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .style-name {
+            font-size: 20px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 10px;
+        }
+        
+        .style-desc {
+            font-size: 14px;
+            color: #6b7280;
+            margin-bottom: 15px;
+        }
+        
+        .style-use {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #374151;
+        }
+        
+        /* ICON SIZES */
+        .sizes-demo {
+            background: #f9fafb;
+            border-radius: 12px;
+            padding: 40px;
+            margin: 30px 0;
+        }
+        
+        .size-row {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .size-icon-container {
+            min-width: 80px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .size-icon {
+            background: #dbeafe;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #2563eb;
+            font-weight: 700;
+        }
+        
+        .size-info {
+            flex: 1;
+        }
+        
+        .size-label {
+            font-size: 18px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 5px;
+        }
+        
+        .size-pixels {
+            font-size: 14px;
+            color: #3b82f6;
+            font-family: 'Monaco', monospace;
+            margin-bottom: 5px;
+        }
+        
+        .size-use {
+            font-size: 13px;
+            color: #6b7280;
+        }
+        
+        .size-badge {
+            background: #10b981;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        
+        /* FIGMA SETUP */
+        .figma-steps {
+            display: grid;
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .figma-step {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border: 2px solid #86efac;
+            border-radius: 12px;
+            padding: 25px;
+            border-left: 6px solid #10b981;
+        }
+        
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .step-number {
+            background: #10b981;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+        }
+        
+        .step-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #065f46;
+        }
+        
+        .step-content {
+            color: #047857;
+            font-size: 14px;
+            line-height: 1.8;
+            padding-left: 51px;
+        }
+        
+        /* USAGE EXAMPLES */
+        .usage-grid {
+            display: grid;
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .usage-example {
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .usage-header {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            padding: 15px 20px;
+            font-weight: 700;
+            font-size: 16px;
+        }
+        
+        .usage-content {
+            padding: 25px;
+        }
+        
+        .usage-demo {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .demo-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #3b82f6;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            font-size: 15px;
+        }
+        
+        .demo-input {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            background: white;
+        }
+        
+        .demo-input input {
+            border: none;
+            outline: none;
+            font-size: 14px;
+            flex: 1;
+        }
+        
+        .demo-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        
+        .demo-card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .demo-card-icon {
+            width: 40px;
+            height: 40px;
+            background: #dbeafe;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #2563eb;
+            font-size: 20px;
+        }
+        
+        .demo-card-title {
+            font-weight: 600;
+            color: #111827;
+        }
+        
+        .demo-card-text {
+            font-size: 14px;
+            color: #6b7280;
+        }
+        
+        .usage-note {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6;
+            font-size: 13px;
+            color: #1e3a8a;
+        }
+        
+        /* TIPS */
+        .tip-box {
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 12px;
+            border-left: 5px solid;
+        }
+        
+        .tip-success {
+            background: #d1fae5;
+            border-color: #10b981;
+        }
+        
+        .tip-warning {
+            background: #fef3c7;
+            border-color: #f59e0b;
+        }
+        
+        .tip-info {
+            background: #dbeafe;
+            border-color: #3b82f6;
+        }
+        
+        .tip-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .tip-success .tip-title {
+            color: #065f46;
+        }
+        
+        .tip-warning .tip-title {
+            color: #92400e;
+        }
+        
+        .tip-info .tip-title {
+            color: #1e40af;
+        }
+        
+        .tip-text {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .tip-success .tip-text {
+            color: #064e3b;
+        }
+        
+        .tip-warning .tip-text {
+            color: #78350f;
+        }
+        
+        .tip-info .tip-text {
+            color: #1e3a8a;
+        }
+        
+        /* CHECKLIST */
+        .checklist {
+            background: #f9fafb;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+        }
+        
+        .checklist-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 20px;
+        }
+        
+        .checklist-item {
+            display: flex;
+            align-items: start;
+            gap: 12px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .check-box {
+            background: #10b981;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        
+        .checklist-text {
+            color: #374151;
+            line-height: 1.5;
+        }
+        
+        @media (max-width: 768px) {
+            .main-header h1 {
+                font-size: 32px;
+            }
+            
+            .section {
+                padding: 25px 20px;
+            }
+            
+            .library-grid,
+            .styles-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body id="artifacts-component-root-html">
+    <div class="main-header">
+        <h1>🎨 Iconos, Componentes y Variantes</h1>
+        <p>Guía completa para crear un sistema de iconos con componentes y variantes en Figma</p>
+    </div>
+
+    <div class="container">
+        <!-- INTRODUCCIÓN -->
+        <div class="section">
+            <h2 class="section-title">
+                <span style="font-size: 36px;">🎯</span>
+                ¿Por qué necesitas un sistema de iconos?
+            </h2>
+            <p class="section-subtitle">Los iconos son el lenguaje visual de tu interfaz. Un sistema consistente hace la diferencia.</p>
+            
+            <div class="library-grid">
+                <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 25px; border-radius: 12px; border: 2px solid #93c5fd;">
+                    <div style="font-size: 32px; margin-bottom: 12px;">⚡</div>
+                    <h3 style="color: #1e40af; font-size: 18px; margin-bottom: 10px; font-weight: 700;">Comunicación rápida</h3>
+                    <p style="color: #1e3a8a; font-size: 14px;">Los iconos comunican instantáneamente sin necesidad de leer texto.</p>
+                </div>
+                
+                <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); padding: 25px; border-radius: 12px; border: 2px solid #86efac;">
+                    <div style="font-size: 32px; margin-bottom: 12px;">✨</div>
+                    <h3 style="color: #15803d; font-size: 18px; margin-bottom: 10px; font-weight: 700;">Consistencia visual</h3>
+                    <p style="color: #14532d; font-size: 14px;">Un estilo uniforme hace tu interfaz más profesional y coherente.</p>
+                </div>
+                
+                <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding: 25px; border-radius: 12px; border: 2px solid #fcd34d;">
+                    <div style="font-size: 32px; margin-bottom: 12px;">🌍</div>
+                    <h3 style="color: #92400e; font-size: 18px; margin-bottom: 10px; font-weight: 700;">Universal</h3>
+                    <p style="color: #78350f; font-size: 14px;">Trascienden idiomas y barreras culturales.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- BIBLIOTECAS RECOMENDADAS -->
+        <div class="section">
+            <h2 class="section-title">
+                <span style="font-size: 36px;">📚</span>
+                Bibliotecas de Iconos Recomendadas
+            </h2>
+            <p class="section-subtitle">Elige una biblioteca y úsala consistentemente en todo tu proyecto</p>
+
+            <div class="library-grid">
+                <!-- LUCIDE -->
+                <div class="library-card recommended">
+                    <span class="recommended-badge">⭐ Recomendada</span>
+                    <div class="library-name">Lucide Icons</div>
+                    <div class="library-creator">Open Source • Moderno</div>
+                    
+                    <div class="library-icons-demo">
+                        <div class="demo-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                            </svg>
+                        </div>
+                        <div class="demo-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <path d="m21 21-4.35-4.35"></path>
+                            </svg>
+                        </div>
+                        <div class="demo-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <div class="library-features">
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>1000+ iconos consistentes</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>Diseño limpio y moderno</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>Totalmente gratuito</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>Muy usado actualmente</span>
+                        </div>
+                    </div>
+                    
+                    <div class="library-plugin">
+                        <span class="plugin-label">Plugin Figma:</span> "Lucide Icons"
+                    </div>
+                </div>
+
+                <!-- HEROICONS -->
+                <div class="library-card">
+                    <div class="library-name">Heroicons</div>
+                    <div class="library-creator">Por Tailwind CSS</div>
+                    
+                    <div class="library-icons-demo">
+                        <div class="demo-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"></path>
+                            </svg>
+                        </div>
+                        <div class="demo-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path>
+                            </svg>
+                        </div>
+                        <div class="demo-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <div class="library-features">
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>Diseñado por Tailwind CSS</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>2 estilos: outline y solid</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>Muy profesional</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>Gratuito</span>
+                        </div>
+                    </div>
+                    
+                    <div class="library-plugin">
+                        <span class="plugin-label">Plugin Figma:</span> "Heroicons"
+                    </div>
+                </div>
+
+                <!-- FEATHER -->
+                <div class="library-card">
+                    <div class="library-name">Feather Icons</div>
+                    <div class="library-creator">Minimalista • Clean</div>
+                    
+                    <div class="library-icons-demo">
+                        <div class="demo-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            </svg>
+                        </div>
+                        <div class="demo-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                        </div>
+                        <div class="demo-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <div class="library-features">
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>Extremadamente minimalista</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>Estilo outline consistente</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>Perfecto para UI limpia</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>Gratuito</span>
+                        </div>
+                    </div>
+                    
+                    <div class="library-plugin">
+                        <span class="plugin-label">Plugin Figma:</span> "Feather Icons"
+                    </div>
+                </div>
+
+                <!-- MATERIAL DESIGN -->
+                <div class="library-card">
+                    <div class="library-name">Material Design Icons</div>
+                    <div class="library-creator">Por Google</div>
+                    
+                    <div class="library-icons-demo">
+                        <div class="demo-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"></path>
+                            </svg>
+                        </div>
+                        <div class="demo-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path>
+                            </svg>
+                        </div>
+                        <div class="demo-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <div class="library-features">
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>Biblioteca oficial de Google</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>5 estilos diferentes</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>Muy reconocible</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="check-icon">✓</span>
+                            <span>Gratuito</span>
+                        </div>
+                    </div>
+                    
+                    <div class="library-plugin">
+                        <span class="plugin-label">Plugin Figma:</span> "Material Design Icons"
+                    </div>
+                </div>
+            </div>
+
+            <div class="tip-box tip-success">
+                <div class="tip-title">💡 Recomendación</div>
+                <div class="tip-text">
+                    Para empezar, usa <strong>Lucide Icons</strong>. Es moderna, gratuita, consistente y muy usada actualmente. Si prefieres algo más establecido, <strong>Heroicons</strong> (de Tailwind CSS) es excelente.
+                </div>
+            </div>
+        </div>
+
+        <!-- CREAR COMPONENTES CON VARIANTES -->
+        <div class="section">
+            <h2 class="section-title">
+                <span style="font-size: 36px;">🔧</span>
+                Crear Componentes de Iconos con Variantes en Figma
+            </h2>
+            <p class="section-subtitle">Aprende a crear un sistema de iconos reutilizable y flexible con variantes múltiples</p>
+
+            <div class="figma-steps">
+                <div class="figma-step">
+                    <div class="step-header">
+                        <span class="step-number">1</span>
+                        <span class="step-title">Importar icono desde biblioteca de Figma</span>
+                    </div>
+                    <div class="step-content">
+                        • Ve a <strong>Assets</strong> (panel izquierdo) o presiona <strong>Shift + I</strong><br>
+                        • Busca "Simple Design System" o cualquier biblioteca con iconos<br>
+                        • Arrastra un icono a tu canvas (ej: icono "Star")<br>
+                        • Repite para otro icono diferente (ej: icono "Repeat")
+                    </div>
+                </div>
+
+                <div class="figma-step">
+                    <div class="step-header">
+                        <span class="step-number">2</span>
+                        <span class="step-title">Hacer Detach del icono</span>
+                    </div>
+                    <div class="step-content">
+                        • Selecciona el icono importado<br>
+                        • Click derecho → <strong>"Detach instance"</strong> (o Cmd/Ctrl + Alt + B)<br>
+                        • Ahora el icono es tuyo y puedes modificarlo<br>
+                        • Repite el Detach para el segundo icono
+                    </div>
+                </div>
+
+                <div class="figma-step">
+                    <div class="step-header">
+                        <span class="step-number">3</span>
+                        <span class="step-title">Preparar los dos iconos base</span>
+                    </div>
+                    <div class="step-content">
+                        • Asegúrate que ambos iconos (Star y Repeat) tengan tamaño <strong>24×24px</strong><br>
+                        • Cambia ambos iconos a color <strong>Negro (#000000)</strong><br>
+                        • Renombra el primer icono a "Star"<br>
+                        • Renombra el segundo icono a "Repeat"<br>
+                        • Colócalos uno al lado del otro con espacio entre ellos
+                    </div>
+                </div>
+
+                <div class="figma-step">
+                    <div class="step-header">
+                        <span class="step-number">4</span>
+                        <span class="step-title">Crear componentes múltiples con variantes (IMPORTANTE)</span>
+                    </div>
+                    <div class="step-content">
+                        • Selecciona AMBOS iconos (Star y Repeat)<br>
+                        • Click derecho → <strong>"Create multiple components"</strong> (o Cmd/Ctrl + Alt + Shift + K)<br>
+                        • IMPORTANTE: En el diálogo que aparece, marca la opción <strong>"Combine as variants"</strong> ✓<br>
+                        • En el campo de la propiedad, escribe <strong>"Type"</strong><br>
+                        • Figma creará automáticamente un componente con la propiedad "Type" con valores: Star, Repeat<br>
+                        • Ahora tienes un componente con 2 variantes base
+                    </div>
+                </div>
+
+                <div class="figma-step">
+                    <div class="step-header">
+                        <span class="step-number">5</span>
+                        <span class="step-title">Renombrar componente y añadir variantes de Size</span>
+                    </div>
+                    <div class="step-content">
+                        • Selecciona el <strong>componente principal</strong> (el contenedor morado que engloba ambos iconos)<br>
+                        • En el panel derecho, renómbralo a <strong>"Icons"</strong><br>
+                        • Ahora entra en el componente haciendo doble click<br>
+                        • Selecciona UNA de las variantes existentes (ej: Star)<br>
+                        • Duplica esa variante (Cmd/Ctrl + D) y colócala al lado<br>
+                        • Cambia el tamaño del duplicado a <strong>12×12px</strong><br>
+                        • Repite el proceso para la otra variante (Repeat)<br>
+                        • Sal del componente y selecciona el <strong>componente principal</strong> (el contenedor morado completo)<br>
+                        • En el panel derecho, haz click en el <strong>+</strong> para añadir una nueva propiedad<br>
+                        • Selecciona el tipo <strong>"Variant"</strong><br>
+                        • Escribe el nombre de la propiedad: <strong>"Size"</strong><br>
+                        • Entra nuevamente en el componente<br>
+                        • Asigna valor <strong>"24"</strong> a los de 24px y <strong>"12"</strong> a los de 12px<br>
+                        • Ahora tienes 4 variantes: Star-24, Star-12, Repeat-24, Repeat-12
+                    </div>
+                </div>
+
+                <div class="figma-step">
+                    <div class="step-header">
+                        <span class="step-number">6</span>
+                        <span class="step-title">Añadir propiedad Color</span>
+                    </div>
+                    <div class="step-content">
+                        • Dentro del componente, selecciona TODAS las variantes actuales (Star-24, Star-12, Repeat-24, Repeat-12)<br>
+                        • Duplica todas (Cmd/Ctrl + D)<br>
+                        • Cambia el color de los duplicados a <strong>Blanco (#FFFFFF)</strong><br>
+                        • Sal del componente y selecciona el <strong>componente principal</strong> (el contenedor morado completo)<br>
+                        • En el panel derecho, haz click en el <strong>+</strong> para añadir una nueva propiedad<br>
+                        • Selecciona el tipo <strong>"Variant"</strong><br>
+                        • Escribe el nombre de la propiedad: <strong>"Color"</strong><br>
+                        • Entra nuevamente en el componente<br>
+                        • Asigna valor <strong>"Black"</strong> a los negros y <strong>"White"</strong> a los blancos<br>
+                        • Ahora tienes 8 variantes totales (2 tipos × 2 tamaños × 2 colores)
+                    </div>
+                </div>
+
+                <div class="figma-step">
+                    <div class="step-header">
+                        <span class="step-number">7</span>
+                        <span class="step-title">Organizar las variantes</span>
+                    </div>
+                    <div class="step-content">
+                        • Dentro del componente, organiza las 8 variantes en una cuadrícula lógica<br>
+                        • Agrupa por Type (Star arriba, Repeat abajo) o por Size/Color<br>
+                        • Mantén espaciado consistente entre variantes (múltiplos de 8px)<br>
+                        • Verifica que todas las propiedades estén correctamente asignadas<br>
+                        • Sal del modo edición del componente haciendo click fuera
+                    </div>
+                </div>
+
+                <div class="figma-step">
+                    <div class="step-header">
+                        <span class="step-number">8</span>
+                        <span class="step-title">Usar el componente con variantes</span>
+                    </div>
+                    <div class="step-content">
+                        • Ve a <strong>Assets</strong> (Shift + I)<br>
+                        • Busca tu componente "Icons"<br>
+                        • Arrástralo a tu diseño<br>
+                        • En el panel derecho verás dropdowns para: <strong>Type</strong>, <strong>Size</strong>, <strong>Color</strong><br>
+                        • Cambia entre las 8 variantes fácilmente ¡sin duplicar componentes!<br>
+                        • Cada cambio de propiedad actualiza el icono instantáneamente
+                    </div>
+                </div>
+            </div>
+
+            <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 3px solid #f59e0b; border-radius: 12px; padding: 25px; margin: 30px 0;">
+                <h3 style="color: #92400e; font-size: 20px; margin-bottom: 15px; font-weight: 700;">🎯 Resultado Final</h3>
+                <div style="color: #78350f; font-size: 15px; line-height: 1.8;">
+                    Tendrás UN solo componente llamado <strong>"Icons"</strong> con <strong>3 propiedades</strong> que combinan para crear 8 variantes:<br><br>
+                    
+                    <div style="background: white; padding: 20px; border-radius: 8px; margin: 15px 0;">
+                        <strong style="color: #111827;">Propiedades del componente:</strong><br>
+                        • <strong>Type:</strong> Star, Repeat<br>
+                        • <strong>Size:</strong> 24, 12<br>
+                        • <strong>Color:</strong> Black, White<br><br>
+                        
+                        <strong style="color: #111827;">Total de combinaciones:</strong> 2 × 2 × 2 = <strong>8 variantes</strong>
+                    </div>
+                    
+                    <strong>Ventaja clave:</strong> Usar <strong>"Combine as variants"</strong> desde el principio crea la estructura correcta. Luego solo añades más propiedades dentro del componente.
+                </div>
+            </div>
+
+            <div class="tip-box tip-success">
+                <div class="tip-title">✨ Por qué este método es mejor</div>
+                <div class="tip-text">
+                    <strong>• Más rápido:</strong> Creas la estructura de variantes desde el inicio<br>
+                    <strong>• Más limpio:</strong> Figma organiza automáticamente las propiedades<br>
+                    <strong>• Más escalable:</strong> Añadir nuevos iconos es solo duplicar dentro del componente<br>
+                    <strong>• Menos errores:</strong> No necesitas seleccionar todo al final y esperar que Figma detecte patrones<br>
+                    <strong>• Profesional:</strong> Es el flujo de trabajo estándar en equipos de diseño
+                </div>
+            </div>
+
+            <div class="tip-box tip-warning">
+                <div class="tip-title">⚠️ Errores comunes a evitar</div>
+                <div class="tip-text">
+                    <strong>• NO olvides marcar "Combine as variants"</strong> - Sin esto, crearás componentes separados<br>
+                    <strong>• NO crees todas las variantes ANTES</strong> - Es más difícil de manejar y organizar<br>
+                    <strong>• NO uses nombres inconsistentes</strong> - "Star", "star", "STAR" son diferentes para Figma<br>
+                    <strong>• NO mezcles formatos</strong> - Si usas "24" para size, no uses "Small" para otro<br>
+                    <strong>• Para cambiar colores, haz DETACH en la propiedad Fill</strong> - Los iconos importados están vinculados a la biblioteca original y no podrás cambiar su color hasta hacer detach (quitar el clip)<br>
+                    <strong>• Ten cuidado con Frame vs Icono</strong> - Cada componente tiene un marco contenedor y el icono dentro. Asegúrate de seleccionar el correcto:<br>
+                    &nbsp;&nbsp;&nbsp;→ Para añadir propiedades: selecciona el <strong>componente/frame principal</strong><br>
+                    &nbsp;&nbsp;&nbsp;→ Para cambiar color/tamaño: selecciona el <strong>icono interior</strong><br>
+                    &nbsp;&nbsp;&nbsp;→ Mira la jerarquía en el panel izquierdo para verificar qué tienes seleccionado<br>
+                    <strong>• Usa el botón + para crear variantes DENTRO del componente</strong> - NO uses copiar/pegar (Cmd/Ctrl + C y V) para duplicar variantes. Esto creará elementos fuera del componente. Siempre duplica usando Cmd/Ctrl + D mientras estás DENTRO del componente, o usa el botón + en las propiedades<br>
+                    <strong>• Ajusta el stroke en tamaños pequeños</strong> - Cuando crees iconos de 12px o menores, considera reducir el grosor del trazo (stroke). Un icono de 24px con stroke de 2px se verá bien, pero al reducirlo a 12px puede verse demasiado grueso. Ajusta el stroke proporcionalmente para mantener la legibilidad<br>
+                    <strong>• Organiza las variantes dentro del componente</strong> - Facilita el mantenimiento visual
+                </div>
+            </div>
+        </div>
+
+        <!-- ESTILOS DE ICONOS -->
+        <div class="section">
+            <h2 class="section-title">
+                <span style="font-size: 36px;">🎨</span>
+                Estilos de Iconos
+            </h2>
+            <p class="section-subtitle">Los iconos pueden tener diferentes estilos visuales. Elige uno y manténlo consistente.</p></div></div></body></html>

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tema 1: Planificación de una Interfaz Gráfica | DIWEB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            min-height: 100vh;
+        }
+        .active-card {
+            border-color: #3b82f6 !important;
+            box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.3), 0 8px 10px -6px rgba(59, 130, 246, 0.2) !important;
+            transform: translateY(-4px) scale(1.02);
+            background: linear-gradient(to bottom, #ffffff, #eff6ff);
+        }
+        .topic-card {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased p-4 md:p-8">
+
+    <main class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="text-center mb-12">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold mb-4 tracking-wide uppercase">
+                DIWEB • 2º DAW • Curso 2026/2027
+            </div>
+            <h1 class="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-4">
+                Tema 1: Planificación de una Interfaz Gráfica
+            </h1>
+            <p class="max-w-3xl mx-auto text-base md:text-lg text-slate-600 leading-relaxed">
+                Antes de escribir una sola línea de código, el diseño de una interfaz web comienza en la fase de planificación.
+                Exploramos los principios fundamentales para sentar las bases de cualquier proyecto: desde la percepción visual
+                y la interacción persona-ordenador hasta la arquitectura de información, guías de estilo y prototipado.
+            </p>
+        </header>
+
+        <!-- Detalle Activo Superior -->
+        <section id="topic-details" class="mb-12 bg-white rounded-2xl shadow-xl p-6 md:p-8 border border-slate-200 transition-all duration-300">
+            <div class="flex flex-col md:flex-row items-center md:items-start gap-6">
+                <div id="topic-icon" class="text-5xl md:text-6xl p-4 bg-blue-50 rounded-2xl border border-blue-100 flex-shrink-0">
+                    👀
+                </div>
+                <div class="flex-1 text-center md:text-left">
+                    <div class="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-2">
+                        <span id="topic-badge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                            Bloque 01
+                        </span>
+                        <span id="topic-tag" class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                            Fundamento Visual
+                        </span>
+                    </div>
+                    <h3 id="topic-title" class="text-2xl md:text-3xl font-bold text-slate-900 mb-3">
+                        Elementos del diseño: percepción visual
+                    </h3>
+                    <p id="topic-description" class="text-slate-600 text-base md:text-lg leading-relaxed mb-4">
+                        Explora cómo el cerebro humano interpreta lo que ve. Aprenderemos a aplicar principios como la Gestalt para crear diseños que sean intuitivos y fáciles de procesar para el usuario.
+                    </p>
+                    <div id="topic-keys" class="flex flex-wrap gap-2 justify-center md:justify-start">
+                        <span class="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-md">Leyes de la Gestalt</span>
+                        <span class="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-md">Jerarquía visual</span>
+                        <span class="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-md">Carga cognitiva</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Grid de los 13 Puntos Clave -->
+        <section class="mb-12">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-slate-900">Puntos Clave del Tema (13 Bloques)</h2>
+                <span class="text-sm text-slate-500 font-medium">Haz clic en cada tarjeta para explorar</span>
+            </div>
+
+            <div id="topic-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <!-- Tarjetas dinámicas generadas por JS -->
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="text-center py-8 border-t border-slate-200 text-slate-500 text-sm">
+            <p>© 2026/2027 Diseño de Interfaces Web (DIWEB) | Material docente</p>
+            <p class="mt-1">IES Hermenegildo Lanz • Formación Profesional de Grado Superior</p>
+        </footer>
+    </main>
+
+    <script>
+        const topics = [
+            {
+                id: 't1',
+                num: '01',
+                title: 'Elementos del diseño: percepción visual',
+                icon: '👀',
+                category: 'Fundamento Visual',
+                description: 'Explora cómo el cerebro humano interpreta lo que ve. Aprenderemos a aplicar principios como la Gestalt para crear diseños que sean intuitivos y fáciles de procesar para el usuario.',
+                keywords: ['Leyes de la Gestalt', 'Figura y Fondo', 'Proximidad', 'Continuidad']
+            },
+            {
+                id: 't2',
+                num: '02',
+                title: 'Color, tipografía, iconos',
+                icon: '🎨',
+                category: 'Identidad Visual',
+                description: 'Estos son los bloques de construcción visuales de cualquier interfaz. Su correcta selección no solo hace que un diseño sea atractivo, sino que también establece el tono y guía al usuario sin necesidad de palabras.',
+                keywords: ['Espacios RGB/HSL/OKLCH', 'Escalas tipográficas', 'Iconografía SVG', 'Contraste WCAG']
+            },
+            {
+                id: 't3',
+                num: '03',
+                title: 'Interacción persona-ordenador (IPO / HCI)',
+                icon: '🧠',
+                category: 'Experiencia de Usuario',
+                description: 'Se enfoca en cómo las personas interactúan con las interfaces digitales. Nuestro objetivo es diseñar una interacción que sea fluida, eficiente y que cause la menor frustración y carga mental posible.',
+                keywords: ['Modelos mentales', '10 Heurísticas de Nielsen', 'Affordance', 'Feedback inmediato']
+            },
+            {
+                id: 't4',
+                num: '04',
+                title: 'Interpretación de guías de estilo',
+                icon: '📖',
+                category: 'Estandarización',
+                description: 'Es el proceso de entender y aplicar un conjunto de normas visuales predefinidas. Esto asegura la coherencia de marca, el diseño sistemático y la usabilidad en un proyecto mediano o grande.',
+                keywords: ['Design Systems', 'Design Tokens', 'Manual de marca', 'Consistencia visual']
+            },
+            {
+                id: 't5',
+                num: '05',
+                title: 'Patrones de diseño Web',
+                icon: '📐',
+                category: 'Arquitectura UI',
+                description: 'Son soluciones probadas y reutilizables para problemas de diseño comunes. Por ejemplo, el patrón de barra de navegación responsive, el formulario en pasos o el panel modal accesible.',
+                keywords: ['UI Patterns', 'Navegación off-canvas', 'Form wizard', 'Breadcrumbs']
+            },
+            {
+                id: 't6',
+                num: '06',
+                title: 'Generación de documentos y sitios Web',
+                icon: '✍️',
+                category: 'Flujo de Trabajo',
+                description: 'El proceso de concebir y estructurar el contenido de un sitio web, transitando ordenadamente desde la investigación inicial y los bocetos hasta la especificación técnica de entrega.',
+                keywords: ['Briefing', 'User flow', 'Handoff diseño-desarrollo', 'Especificación técnica']
+            },
+            {
+                id: 't7',
+                num: '07',
+                title: 'Componentes de una interfaz Web',
+                icon: '🧩',
+                category: 'Componentización',
+                description: 'Las partes individuales reutilizables que forman una interfaz: botones, campos de formulario, tarjetas de contenido, menús desplegables, barras de progreso y modales.',
+                keywords: ['Atomic Design', 'Átomos y Moléculas', 'Estados (Hover, Active, Focus)', 'Variantes']
+            },
+            {
+                id: 't8',
+                num: '08',
+                title: 'Aplicaciones para desarrollo Web',
+                icon: '💻',
+                category: 'Tooling',
+                description: 'Herramientas y programas que utilizamos para diseñar, prototipar y codificar interfaces: Figma y Penpot para UI/UX, VS Code, extensiones clave y DevTools del navegador.',
+                keywords: ['Figma', 'Penpot (Open Source)', 'VS Code', 'Chrome/Firefox DevTools']
+            },
+            {
+                id: 't9',
+                num: '09',
+                title: 'Lenguajes de marcas',
+                icon: '🏷️',
+                category: 'Código Base',
+                description: 'La base técnica de la web moderna. HTML5 se utiliza para dar estructura semántica y significado accesible al contenido, mientras que CSS3 aporta maquetación, estilo y dinamismo.',
+                keywords: ['HTML5 Semántico', 'CSS3 Moderno', 'Accesibilidad nativa', 'Separación estructura/estilo']
+            },
+            {
+                id: 't10',
+                num: '10',
+                title: 'Mapa de navegación. Prototipos',
+                icon: '🗺️',
+                category: 'Prototipado',
+                description: 'El mapa de navegación define la arquitectura y jerarquía de páginas. Los prototipos (baja y alta fidelidad) son maquetas interactivas para validar la experiencia antes de programar.',
+                keywords: ['Arquitectura de Información', 'Sitemaps', 'Wireframes Lo-Fi', 'Prototipos Hi-Fi']
+            },
+            {
+                id: 't11',
+                num: '11',
+                title: 'Maquetación Web. Elementos de ordenación',
+                icon: '🏗️',
+                category: 'Composición',
+                description: 'Cómo organizar visualmente los elementos en la página. Aborda la jerarquía visual, el equilibrio compositivo, la alineación métrica y el uso estratégico del espacio en blanco (whitespace).',
+                keywords: ['Jerarquía visual', 'Ritmo vertical', 'Espacio en blanco', 'Regla de tercios']
+            },
+            {
+                id: 't12',
+                num: '12',
+                title: 'Marcos, tablas y capas',
+                icon: '🗂️',
+                category: 'Evolución Técnica',
+                description: 'Evolución histórica de los métodos de estructura web: desde los marcos (framesets) y tablas HTML de los años 90 hasta las cajas flotantes y el estándar actual: Flexbox y CSS Grid.',
+                keywords: ['Framesets históricos', 'Table layout', 'Float clearing', 'Flexbox & CSS Grid']
+            },
+            {
+                id: 't13',
+                num: '13',
+                title: 'Plantilla de diseño',
+                icon: '📄',
+                category: 'Sistemas de Plantillas',
+                description: 'Estructuras maestras predefinidas que se usan para crear múltiples páginas con un diseño y comportamiento coherentes, asegurando uniformidad visual y reduciendo tiempo de desarrollo.',
+                keywords: ['Master Layouts', 'Slots y Componentes', 'Herencia de plantillas', 'Sistemas modulares']
+            }
+        ];
+
+        const grid = document.getElementById('topic-grid');
+        const detailIcon = document.getElementById('topic-icon');
+        const detailBadge = document.getElementById('topic-badge');
+        const detailTag = document.getElementById('topic-tag');
+        const detailTitle = document.getElementById('topic-title');
+        const detailDesc = document.getElementById('topic-description');
+        const detailKeys = document.getElementById('topic-keys');
+
+        function renderGrid() {
+            grid.innerHTML = topics.map((topic, index) => `
+                <div data-id="${topic.id}" tabindex="0" role="button" aria-label="${topic.title}"
+                     class="topic-card bg-white rounded-xl shadow-sm hover:shadow-md p-5 flex flex-col items-center text-center border-2 border-slate-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400 ${index === 0 ? 'active-card' : ''}">
+                    <span class="text-3xl mb-3">${topic.icon}</span>
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Bloque ${topic.num}</span>
+                    <h3 class="text-sm font-semibold text-slate-800 leading-snug line-clamp-2">${topic.title}</h3>
+                </div>
+            `).join('');
+
+            document.querySelectorAll('.topic-card').forEach(card => {
+                const selectCard = () => {
+                    const id = card.getAttribute('data-id');
+                    const topic = topics.find(t => t.id === id);
+                    if (!topic) return;
+
+                    document.querySelectorAll('.topic-card').forEach(c => c.classList.remove('active-card'));
+                    card.classList.add('active-card');
+
+                    detailIcon.textContent = topic.icon;
+                    detailBadge.textContent = `Bloque ${topic.num}`;
+                    detailTag.textContent = topic.category;
+                    detailTitle.textContent = topic.title;
+                    detailDesc.textContent = topic.description;
+                    detailKeys.innerHTML = topic.keywords.map(k => `
+                        <span class="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md font-medium">${k}</span>
+                    `).join('');
+
+                    document.getElementById('topic-details').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                };
+
+                card.addEventListener('click', selectCard);
+                card.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        selectCard();
+                    }
+                });
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', renderGrid);
+    </script>
+</body>
+</html>

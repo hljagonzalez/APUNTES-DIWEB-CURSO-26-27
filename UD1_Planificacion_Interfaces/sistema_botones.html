@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<!-- saved from url=(0012)about:srcdoc -->
+<html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <script>
+      (function() {
+        // Capture host references before any artifact code runs: Window.parent
+        // is [Replaceable] (a top-level `var parent` in artifact code would
+        // replace the accessor with a data property), and a top-level
+        // `const crypto` would shadow the global — either would otherwise
+        // silently break the bridge for artifacts that worked before.
+        const realParent = window.parent;
+        const cryptoObj = window.crypto;
+        // html-to-image is only used by takeScreenshot: fetched on first use, not as a
+        // parser-blocking tag. Native fetch, captured before the proxy override below.
+        const realFetch = typeof window.fetch === 'function' ? window.fetch.bind(window) : null;
+        const HTML_TO_IMAGE_SRC = "https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.13/html-to-image.min.js";
+        const HTML_TO_IMAGE_INTEGRITY = "sha512-iZ2ORl595Wx6miw+GuadDet4WQbdSWS3JLMoNfY8cRGoEFy6oT3G9IbcrBeL6AfkgpA51ETt/faX6yLV+/gFJg==";
+        let htmlToImageLoad = null;
+        const loadHtmlToImage = () => {
+          if (!htmlToImageLoad) {
+            htmlToImageLoad = (realFetch
+              ? realFetch(HTML_TO_IMAGE_SRC, { integrity: HTML_TO_IMAGE_INTEGRITY, credentials: 'omit', referrerPolicy: 'no-referrer' })
+              : Promise.reject(new Error('fetch unavailable'))
+            )
+              .then((res) => {
+                if (!res.ok) throw new Error('html-to-image failed to load (' + res.status + ')');
+                return res.text();
+              })
+              .then((source) => {
+                // UMD bundle: hide the artifact's AMD/CommonJS globals so it takes the
+                // window-global branch; inline script text runs synchronously on insert.
+                const hidden = ['define', 'module', 'exports'].map((k) => {
+                  const entry = { k, own: Object.prototype.hasOwnProperty.call(window, k), v: window[k] };
+                  try { window[k] = undefined; } catch (e) {}
+                  return entry;
+                });
+                try {
+                  const el = document.createElement('script');
+                  el.text = source;
+                  (document.head || document.documentElement).appendChild(el);
+                } finally {
+                  hidden.forEach(({ k, own, v }) => {
+                    try { if (own) { window[k] = v; } else { delete window[k]; } } catch (e) {}
+                  });
+                }
+                if (!window.htmlToImage) throw new Error('html-to-image unavailable after load');
+                return window.htmlToImage;
+              });
+            // A failed load may be transient; let the next screenshot retry.
+            htmlToImageLoad.catch(() => { htmlToImageLoad = null; });
+          }
+          return htmlToImageLoad;
+        };
+        // crypto.randomUUID exists only in Secure Contexts; fall back to a
+        // unique non-crypto id elsewhere (http://LAN-IP dev flows) —
+        // uniqueness is what the bridge needs, unpredictability is
+        // defense-in-depth on top of the source guards.
+        const newRequestId =
+          cryptoObj && typeof cryptoObj.randomUUID === "function"
+            ? function () { return cryptoObj.randomUUID(); }
+            : function () { return Date.now() + "-" + Math.random(); };
+        const originalConsole = window.console;
+        window.console = {
+          log: (...args) => {
+            originalConsole.log(...args);
+            realParent.postMessage({ type: 'console', message: args.join(' ') }, '*');
+          },
+          error: (...args) => {
+            originalConsole.error(...args);
+            realParent.postMessage({ type: 'console', message: 'Error: ' + args.join(' ') }, '*');
+          },
+          warn: (...args) => {
+            originalConsole.warn(...args);
+            realParent.postMessage({ type: 'console', message: 'Warning: ' + args.join(' ') }, '*');
+          }
+        };
+
+        // Bridge request ids are crypto-random (not sequential) so they
+        // cannot be predicted by other frames in the tab.
+        let callbacksMap = new Map();
+        let streamControllers = new Map();
+        
+        window.claude = {
+          complete: (prompt) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'claudeComplete', id, prompt }, '*');
+            });
+          }
+        };
+
+        window.storage = {
+          get: (key, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageGet', id, key, shared }, '*');
+            });
+          },
+          set: (key, value, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageSet', id, key, value, shared }, '*');
+            });
+          },
+          delete: (key, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageDelete', id, key, shared }, '*');
+            });
+          },
+          list: (prefix, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageList', id, prefix, shared }, '*');
+            });
+          }
+        };
+
+        let pendingBlobs = new Map();
+        URL.createObjectURL = (blob) => {
+          // Store the blob and create an ID and URL for it
+          const blobId = `blob-${Date.now()}-${Math.random()}`;
+          pendingBlobs.set(blobId, blob);
+          return `blob-request://${blobId}`;
+        };
+
+        URL.revokeObjectURL = (url) => {
+          // Remove the blob from our store
+          const blobId = url.replace("blob-request://", "");
+          pendingBlobs.delete(blobId);
+        };
+
+        const getBlobFromURL = (url) => {
+          const blobId = url.replace("blob-request://", "");
+          return pendingBlobs.get(blobId);
+        };
+
+        // Override global fetch with streaming support
+        window.fetch = (url, init = {}) => {
+          return new Promise((resolve, reject) => {
+            const id = newRequestId();
+            const channelId = `fetch-${id}-${Date.now()}`;
+            
+            callbacksMap.set(id, { 
+              resolve: (response) => {
+                // Null-body statuses: Response(stream, {status: 204}) throws
+                // per the Fetch spec, which would escape this resolver and
+                // hang the artifact's await forever.
+                if (response.status === 204 || response.status === 205 || response.status === 304) {
+                  try {
+                    resolve(new Response(null, {
+                      status: response.status,
+                      statusText: response.statusText,
+                      headers: response.headers
+                    }));
+                  } catch (err) {
+                    // Invalid statusText/header bytes can throw here too.
+                    reject(new TypeError(
+                      'Bridge fetch: unconstructable response (status ' + response.status + ')'
+                    ));
+                  }
+                  return;
+                }
+                // Create a ReadableStream for the response body
+                const stream = new ReadableStream({
+                  start(controller) {
+                    streamControllers.set(channelId, controller);
+                  },
+                  cancel() {
+                    streamControllers.delete(channelId);
+                  }
+                });
+                
+                // Create and return the Response with the stream. Response()
+                // requires status in [200, 599]; an opaque/no-cors fetch
+                // forwards status 0, which would throw here and escape the
+                // resolver, hanging the artifact's await. Surface it as a
+                // network-error-shaped rejection instead.
+                try {
+                  resolve(new Response(stream, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers
+                  }));
+                } catch (err) {
+                  streamControllers.delete(channelId);
+                  reject(new TypeError(
+                    'Bridge fetch: unconstructable response (status ' + response.status + ')'
+                  ));
+                }
+              },
+              reject,
+              channelId
+            });
+            
+            realParent.postMessage({
+              type: 'proxyFetch',
+              id,
+              url,
+              init,
+              channelId
+            }, '*');
+          });
+        };
+
+        window.addEventListener('message', async (event) => {
+          // Only the embedding parent may drive the bridge — sibling and
+          // nested frames can also postMessage into this window.
+          if (event.source !== realParent) return;
+          if (event.data.type === 'takeScreenshot') {
+            // Echo the request's nonce so the requester can correlate the
+            // reply to ITS request — a reply without the expected nonce
+            // (e.g. from a stale pre-remount artifact) is ignored upstream.
+            const screenshotNonce = event.data.nonce;
+            const rootElement = document.getElementById('artifacts-component-root-html');
+            if (!rootElement) {
+              realParent.postMessage({
+                type: 'screenshotError',
+                nonce: screenshotNonce,
+                error: new Error('Root element not found'),
+              }, '*');
+              return;
+            }
+            // Catch CDN load failures and toPng errors so the parent always
+            // gets a response instead of hanging forever.
+            try {
+              const htmlToImage = await loadHtmlToImage();
+              const screenshot = await htmlToImage.toPng(rootElement, {
+                imagePlaceholder:
+                  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAA1JREFUGFdjePDgwX8ACOQDoNsk0PMAAAAASUVORK5CYII=",
+              });
+              realParent.postMessage({
+                type: 'screenshotData',
+                nonce: screenshotNonce,
+                data: screenshot,
+              }, '*');
+            } catch (err) {
+              realParent.postMessage({
+                type: 'screenshotError',
+                nonce: screenshotNonce,
+                error: err instanceof Error ? err : new Error(String(err)),
+              }, '*');
+            }
+          } else if (event.data.type === 'claudeComplete') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.completion);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'proxyFetchResponse') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+              callbacksMap.delete(event.data.id);
+            } else {
+              // Initial response with headers, status, etc.
+              callback.resolve({
+                status: event.data.status,
+                statusText: event.data.statusText,
+                headers: event.data.headers
+              });
+              // Don't delete the callback yet if streaming
+              if (!event.data.body) {
+                callbacksMap.delete(event.data.id);
+              }
+            }
+          } else if (event.data.type === 'proxyFetchStream') {
+            // Handle streaming data chunks
+            const controller = streamControllers.get(event.data.channelId);
+            if (controller) {
+              if (event.data.error) {
+                controller.error(new Error(event.data.error));
+                streamControllers.delete(event.data.channelId);
+              } else if (event.data.done) {
+                controller.close();
+                streamControllers.delete(event.data.channelId);
+                // Clean up the callback
+                const callback = Array.from(callbacksMap.entries()).find(
+                  ([_, value]) => value.channelId === event.data.channelId
+                );
+                if (callback) {
+                  callbacksMap.delete(callback[0]);
+                }
+              } else if (event.data.chunk) {
+                controller.enqueue(new Uint8Array(event.data.chunk));
+              }
+            }
+          } else if (event.data.type === 'storageGet') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageSet') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageDelete') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageList') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          }
+        });
+
+        window.addEventListener('click', (event) => {
+          const isEl = event.target instanceof HTMLElement;
+          if (!isEl) return;
+    
+          // find ancestor links
+          const linkEl = event.target.closest("a");
+          if (!linkEl || !linkEl.href) return;
+    
+          event.preventDefault();
+          event.stopImmediatePropagation();
+    
+          if (linkEl.href.startsWith("blob-request:")) {
+            const blob = getBlobFromURL(linkEl.href);
+            if (!blob) return;
+            void blob.arrayBuffer().then((data) => {
+              realParent.postMessage({
+                type: "downloadFile",
+                filename: linkEl.download,
+                data,
+                mimeType: blob.type || "application/octet-stream",
+              });
+            });
+          } else if (linkEl.href.startsWith("data:")) {
+            const [header, base64Data] = linkEl.href.split(",");
+            const mimeMatch = header.match(/data:([^;]+)/);
+            const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+            const binaryString = atob(base64Data);
+            const data = Uint8Array.from(binaryString, (c) =>
+              c.charCodeAt(0),
+            ).buffer;
+            realParent.postMessage({
+              type: "downloadFile",
+              filename: linkEl.download,
+              data,
+              mimeType,
+            });
+          } else {
+            let linkUrl;
+            try {
+              linkUrl = new URL(linkEl.href);
+            } catch (error) {
+              return;
+            }
+    
+            if (linkUrl.hostname === window.location.hostname) return;
+      
+            realParent.postMessage({
+              type: 'openExternal',
+              href: linkEl.href,
+            }, '*');
+          }
+      });
+
+        const originalOpen = window.open;
+        window.open = function (url) {
+          realParent.postMessage({
+            type: "openExternal",
+            href: url,
+          }, "*");
+        };
+
+        window.addEventListener('error', (event) => {
+          realParent.postMessage({ type: 'console', message: 'Uncaught Error: ' + event.message }, '*');
+        });
+      })();
+    </script>
+  
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Botones - Guía Interactiva</title>
+    <script src="https://cdn.tailwindcss.com/"></script>
+    <style>
+        /* Fuente personalizada */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Botones Primary - 12 Variantes */
+        .btn-primary {
+            background-color: #2563EB;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.05);
+            transition: all 0.15s ease;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: #1D4ED8;
+        }
+
+        .btn-primary:active:not(:disabled) {
+            background-color: #1E40AF;
+            box-shadow: inset 0px 2px 4px rgba(0, 0, 0, 0.1);
+            transform: translateY(1px);
+        }
+
+        .btn-primary:disabled {
+            background-color: #E5E7EB;
+            color: #9CA3AF;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* Botones Secondary */
+        .btn-secondary {
+            background-color: #6B7280;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.05);
+            transition: all 0.15s ease;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #4B5563;
+        }
+
+        .btn-secondary:active:not(:disabled) {
+            background-color: #374151;
+            box-shadow: inset 0px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-secondary:disabled {
+            background-color: #E5E7EB;
+            color: #9CA3AF;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* Botones Outline */
+        .btn-outline {
+            background-color: transparent;
+            color: #2563EB;
+            font-weight: 600;
+            font-size: 14px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            border: 2px solid #2563EB;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.15s ease;
+        }
+
+        .btn-outline:hover:not(:disabled) {
+            background-color: #EFF6FF;
+            border-color: #1D4ED8;
+            color: #1D4ED8;
+        }
+
+        .btn-outline:active:not(:disabled) {
+            background-color: #DBEAFE;
+            border-color: #1E40AF;
+            color: #1E40AF;
+        }
+
+        .btn-outline:disabled {
+            border-color: #E5E7EB;
+            color: #9CA3AF;
+            cursor: not-allowed;
+        }
+
+        /* Botones Ghost */
+        .btn-ghost {
+            background-color: transparent;
+            color: #2563EB;
+            font-weight: 600;
+            font-size: 14px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.15s ease;
+        }
+
+        .btn-ghost:hover:not(:disabled) {
+            background-color: #EFF6FF;
+        }
+
+        .btn-ghost:active:not(:disabled) {
+            background-color: #DBEAFE;
+        }
+
+        .btn-ghost:disabled {
+            color: #9CA3AF;
+            cursor: not-allowed;
+        }
+
+        /* Tamaños */
+        .btn-large {
+            font-size: 16px;
+            padding: 16px 24px;
+            gap: 12px;
+            border-radius: 8px;
+        }
+
+        .btn-small {
+            font-size: 12px;
+            padding: 8px 16px;
+            gap: 6px;
+            border-radius: 4px;
+        }
+
+        /* Grid de botones */
+        .button-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin: 24px 0;
+        }
+
+        .button-showcase {
+            padding: 20px;
+            border: 2px dashed #E5E7EB;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            background: #F9FAFB;
+        }
+
+        .showcase-label {
+            font-size: 12px;
+            color: #6B7280;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Secciones */
+        section {
+            margin: 48px 0;
+        }
+
+        h1 {
+            font-size: 36px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 12px;
+        }
+
+        h2 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1F2937;
+            margin-top: 48px;
+            margin-bottom: 16px;
+            border-bottom: 2px solid #E5E7EB;
+            padding-bottom: 8px;
+        }
+
+        h3 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #374151;
+            margin-top: 32px;
+            margin-bottom: 12px;
+        }
+
+        .main-header {
+            background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+        }
+
+        .main-header h1 {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 15px;
+            color: white;
+        }
+
+        .main-header p {
+            font-size: 18px;
+            opacity: 0.95;
+            max-width: 800px;
+            margin: 0 auto;
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            .main-header h1 {
+                font-size: 32px;
+            }
+        }
+
+        .intro-box {
+            background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+            color: white;
+            padding: 32px;
+            border-radius: 12px;
+            margin: 24px 0;
+        }
+
+        .info-box {
+            background: #EFF6FF;
+            border-left: 4px solid #2563EB;
+            padding: 16px 20px;
+            border-radius: 4px;
+            margin: 16px 0;
+        }
+
+        .warning-box {
+            background: #FEF3C7;
+            border-left: 4px solid #F59E0B;
+            padding: 16px 20px;
+            border-radius: 4px;
+            margin: 16px 0;
+        }
+
+        .example-card {
+            background: white;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            padding: 24px;
+            margin: 16px 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Iconos SVG simples */
+        .icon {
+            width: 16px;
+            height: 16px;
+            display: inline-block;
+        }
+
+        .icon-large {
+            width: 20px;
+            height: 20px;
+        }
+
+        .icon-small {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Tabla de specs */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        th {
+            background: #F3F4F6;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #E5E7EB;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #E5E7EB;
+            color: #6B7280;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        code {
+            background: #F3F4F6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #DC2626;
+        }
+
+        .color-swatch {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            border: 1px solid #E5E7EB;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+    </style>
+<style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.mx-auto{margin-left:auto;margin-right:auto}.mb-2{margin-bottom:0.5rem}.mb-4{margin-bottom:1rem}.mb-6{margin-bottom:1.5rem}.mt-0{margin-top:0px}.mt-12{margin-top:3rem}.mt-2{margin-top:0.5rem}.mt-6{margin-top:1.5rem}.inline-block{display:inline-block}.flex{display:flex}.h-5{height:1.25rem}.w-5{width:1.25rem}.max-w-6xl{max-width:72rem}.cursor-pointer{cursor:pointer}.flex-wrap{flex-wrap:wrap}.items-center{align-items:center}.gap-3{gap:0.75rem}.space-y-2 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.5rem * var(--tw-space-y-reverse))}.space-y-3 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.75rem * var(--tw-space-y-reverse))}.rounded{border-radius:0.25rem}.rounded-md{border-radius:0.375rem}.border-t{border-top-width:1px}.border-gray-200{--tw-border-opacity:1;border-color:rgb(229 231 235 / var(--tw-border-opacity, 1))}.bg-blue-600{--tw-bg-opacity:1;background-color:rgb(37 99 235 / var(--tw-bg-opacity, 1))}.bg-gray-50{--tw-bg-opacity:1;background-color:rgb(249 250 251 / var(--tw-bg-opacity, 1))}.p-2{padding:0.5rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.py-12{padding-top:3rem;padding-bottom:3rem}.py-3{padding-top:0.75rem;padding-bottom:0.75rem}.py-8{padding-top:2rem;padding-bottom:2rem}.text-center{text-align:center}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:0.875rem;line-height:1.25rem}.font-semibold{font-weight:600}.leading-relaxed{line-height:1.625}.text-amber-800{--tw-text-opacity:1;color:rgb(146 64 14 / var(--tw-text-opacity, 1))}.text-amber-900{--tw-text-opacity:1;color:rgb(120 53 15 / var(--tw-text-opacity, 1))}.text-blue-600{--tw-text-opacity:1;color:rgb(37 99 235 / var(--tw-text-opacity, 1))}.text-blue-800{--tw-text-opacity:1;color:rgb(30 64 175 / var(--tw-text-opacity, 1))}.text-blue-900{--tw-text-opacity:1;color:rgb(30 58 138 / var(--tw-text-opacity, 1))}.text-gray-500{--tw-text-opacity:1;color:rgb(107 114 128 / var(--tw-text-opacity, 1))}.text-gray-600{--tw-text-opacity:1;color:rgb(75 85 99 / var(--tw-text-opacity, 1))}.text-gray-700{--tw-text-opacity:1;color:rgb(55 65 81 / var(--tw-text-opacity, 1))}.text-green-600{--tw-text-opacity:1;color:rgb(22 163 74 / var(--tw-text-opacity, 1))}.text-red-600{--tw-text-opacity:1;color:rgb(220 38 38 / var(--tw-text-opacity, 1))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.opacity-90{opacity:0.9}.hover\:bg-gray-50:hover{--tw-bg-opacity:1;background-color:rgb(249 250 251 / var(--tw-bg-opacity, 1))}</style></head>
+<body class="bg-gray-50" id="artifacts-component-root-html" style="margin: 0; padding: 0;">
+    <div class="main-header">
+        <h1>🎨 Sistema de Botones Interactivo</h1>
+        <p>Explora, interactúa y aprende cómo funcionan los 12 estados de un sistema de botones profesional. Cada botón aquí es funcional: pasa el cursor y haz clic.</p>
+    </div>
+
+    <div class="max-w-6xl mx-auto px-6 py-10">
+
+        <!-- Introducción -->
+        <section>
+            <h2>🎯 ¿Por qué un Sistema de Botones?</h2>
+            <p class="text-gray-700 leading-relaxed mb-4">
+                Un design system de botones garantiza <strong>consistencia visual</strong>, <strong>eficiencia en el diseño</strong> y <strong>código reutilizable</strong>. En lugar de crear cada botón desde cero, defines una vez y reutilizas infinitamente.
+            </p>
+            <div class="info-box">
+                <p class="text-blue-900 font-semibold">💡 Dato clave:</p>
+                <p class="text-blue-800">Empresas como Airbnb, Shopify y Google han invertido meses en perfeccionar sus sistemas de botones porque saben que les ahorra <strong>años de trabajo futuro</strong>.</p>
+            </div>
+        </section>
+
+        <!-- Las 12 Variantes -->
+        <section>
+            <h2>🔢 Las 12 Variantes del Button Primary</h2>
+            <p class="text-gray-700 mb-6">
+                <strong>4 estados × 3 posiciones de ícono = 12 variantes</strong> que cubren todas las necesidades de tu interfaz.
+            </p>
+
+            <h3>Estado: Default (en reposo)</h3>
+            <p class="text-gray-600 mb-4">El botón cuando la página carga, antes de cualquier interacción.</p>
+            <div class="button-grid">
+                <div class="button-showcase">
+                    <span class="showcase-label">Sin ícono</span>
+                    <button class="btn-primary">Button text</button>
+                </div>
+                <div class="button-showcase">
+                    <span class="showcase-label">Ícono izquierda</span>
+                    <button class="btn-primary">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        Button text
+                    </button>
+                </div>
+                <div class="button-showcase">
+                    <span class="showcase-label">Ícono derecha</span>
+                    <button class="btn-primary">
+                        Button text
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <h3>Estado: Hover (al pasar el cursor)</h3>
+            <p class="text-gray-600 mb-4">Feedback visual cuando el usuario pasa el cursor por encima. <strong>Pasa el cursor sobre estos botones ↓</strong></p>
+            <div class="button-grid">
+                <div class="button-showcase">
+                    <span class="showcase-label">Sin ícono (hover me!)</span>
+                    <button class="btn-primary">Hover me</button>
+                </div>
+                <div class="button-showcase">
+                    <span class="showcase-label">Ícono izquierda</span>
+                    <button class="btn-primary">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                        </svg>
+                        Hover me
+                    </button>
+                </div>
+                <div class="button-showcase">
+                    <span class="showcase-label">Ícono derecha</span>
+                    <button class="btn-primary">
+                        Hover me
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <h3>Estado: Active (al hacer clic)</h3>
+            <p class="text-gray-600 mb-4">Feedback durante el momento del clic. Se ve más oscuro y "hundido". <strong>Haz clic y mantén presionado ↓</strong></p>
+            <div class="button-grid">
+                <div class="button-showcase">
+                    <span class="showcase-label">Sin ícono (click me!)</span>
+                    <button class="btn-primary">Click and hold</button>
+                </div>
+                <div class="button-showcase">
+                    <span class="showcase-label">Ícono izquierda</span>
+                    <button class="btn-primary">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        Click and hold
+                    </button>
+                </div>
+                <div class="button-showcase">
+                    <span class="showcase-label">Ícono derecha</span>
+                    <button class="btn-primary">
+                        Click and hold
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <h3>Estado: Disabled (deshabilitado)</h3>
+            <p class="text-gray-600 mb-4">El botón no está disponible para interacción (ejemplo: formulario incompleto).</p>
+            <div class="button-grid">
+                <div class="button-showcase">
+                    <span class="showcase-label">Sin ícono</span>
+                    <button class="btn-primary" disabled="">Button text</button>
+                </div>
+                <div class="button-showcase">
+                    <span class="showcase-label">Ícono izquierda</span>
+                    <button class="btn-primary" disabled="">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                        Button text
+                    </button>
+                </div>
+                <div class="button-showcase">
+                    <span class="showcase-label">Ícono derecha</span>
+                    <button class="btn-primary" disabled="">
+                        Button text
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="warning-box">
+                <p class="text-amber-900 font-semibold">⚠️ Importante sobre Disabled:</p>
+                <p class="text-amber-800">NUNCA uses solo <code>opacity: 0.5</code> para deshabilitar. Usa colores grises específicos (#E5E7EB fondo, #9CA3AF texto) para mejor accesibilidad y control.</p>
+            </div>
+        </section>
+
+        <!-- Jerarquía de Botones -->
+        <section>
+            <h2>📊 Jerarquía: Tipos de Botones</h2>
+            <p class="text-gray-700 mb-6">No todos los botones son iguales. La jerarquía visual guía al usuario hacia las acciones más importantes.</p>
+
+            <div class="example-card">
+                <h3 class="mt-0">🔵 Primary Button</h3>
+                <p class="text-gray-600 mb-4"><strong>Cuándo:</strong> La acción MÁS importante de la pantalla (solo una por sección)</p>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <button class="btn-primary">Crear cuenta</button>
+                    <button class="btn-primary">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                        </svg>
+                        Añadir al carrito
+                    </button>
+                </div>
+            </div>
+
+            <div class="example-card">
+                <h3 class="mt-0">⚪ Secondary Button</h3>
+                <p class="text-gray-600 mb-4"><strong>Cuándo:</strong> Acciones secundarias pero importantes</p>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <button class="btn-secondary">Cancelar</button>
+                    <button class="btn-secondary">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                        </svg>
+                        Volver
+                    </button>
+                </div>
+            </div>
+
+            <div class="example-card">
+                <h3 class="mt-0">🔲 Outline Button</h3>
+                <p class="text-gray-600 mb-4"><strong>Cuándo:</strong> Acciones terciarias o alternativas</p>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <button class="btn-outline">Editar</button>
+                    <button class="btn-outline">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path>
+                        </svg>
+                        Compartir
+                    </button>
+                </div>
+            </div>
+
+            <div class="example-card">
+                <h3 class="mt-0">👻 Ghost Button</h3>
+                <p class="text-gray-600 mb-4"><strong>Cuándo:</strong> Acciones de bajo peso visual</p>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <button class="btn-ghost">Cerrar</button>
+                    <button class="btn-ghost">
+                        Omitir
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tamaños -->
+        <section>
+            <h2>📏 Tamaños: Adaptabilidad según Contexto</h2>
+            
+            <div class="example-card">
+                <h3 class="mt-0">Large (48px altura)</h3>
+                <p class="text-gray-600 mb-4"><strong>Uso:</strong> CTAs principales, móvil, landing pages</p>
+                <button class="btn-primary btn-large">
+                    <svg class="icon icon-large" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    Comenzar ahora
+                </button>
+            </div>
+
+            <div class="example-card">
+                <h3 class="mt-0">Medium (40px altura) - RECOMENDADO</h3>
+                <p class="text-gray-600 mb-4"><strong>Uso:</strong> 90% de los botones en tu interfaz</p>
+                <button class="btn-primary">
+                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    Guardar cambios
+                </button>
+            </div>
+
+            <div class="example-card">
+                <h3 class="mt-0">Small (32px altura)</h3>
+                <p class="text-gray-600 mb-4"><strong>Uso:</strong> Tablas, cards compactas, navegación secundaria</p>
+                <button class="btn-primary btn-small">
+                    <svg class="icon icon-small" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                    </svg>
+                    Editar
+                </button>
+            </div>
+        </section>
+
+
+
+        <!-- Especificaciones Técnicas -->
+        <section>
+            <h2>🔧 Especificaciones Técnicas</h2>
+
+            <h3>Colores (Primary Button)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Estado</th>
+                        <th>Background</th>
+                        <th>Text</th>
+                        <th>Opacity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Default</td>
+                        <td><span class="color-swatch" style="background-color: #2563EB;"></span>#2563EB</td>
+                        <td><span class="color-swatch" style="background-color: #FFFFFF;"></span>#FFFFFF</td>
+                        <td>100%</td>
+                    </tr>
+                    <tr>
+                        <td>Hover</td>
+                        <td><span class="color-swatch" style="background-color: #1D4ED8;"></span>#1D4ED8</td>
+                        <td><span class="color-swatch" style="background-color: #FFFFFF;"></span>#FFFFFF</td>
+                        <td>100%</td>
+                    </tr>
+                    <tr>
+                        <td>Active</td>
+                        <td><span class="color-swatch" style="background-color: #1E40AF;"></span>#1E40AF</td>
+                        <td><span class="color-swatch" style="background-color: #FFFFFF;"></span>#FFFFFF</td>
+                        <td>100%</td>
+                    </tr>
+                    <tr>
+                        <td>Disabled</td>
+                        <td><span class="color-swatch" style="background-color: #E5E7EB;"></span>#E5E7EB</td>
+                        <td><span class="color-swatch" style="background-color: #9CA3AF;"></span>#9CA3AF</td>
+                        <td>100%</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Espaciado (Auto Layout)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tamaño</th>
+                        <th>Padding Vertical</th>
+                        <th>Padding Horizontal</th>
+                        <th>Gap (ícono)</th>
+                        <th>Border Radius</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Large</td>
+                        <td>16px</td>
+                        <td>24px</td>
+                        <td>12px</td>
+                        <td>8px</td>
+                    </tr>
+                    <tr>
+                        <td>Medium</td>
+                        <td>12px</td>
+                        <td>20px</td>
+                        <td>8px</td>
+                        <td>6px</td>
+                    </tr>
+                    <tr>
+                        <td>Small</td>
+                        <td>8px</td>
+                        <td>16px</td>
+                        <td>6px</td>
+                        <td>4px</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Tipografía</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tamaño</th>
+                        <th>Font Size</th>
+                        <th>Font Weight</th>
+                        <th>Line Height</th>
+                        <th>Letter Spacing</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Large</td>
+                        <td>16px</td>
+                        <td>600 (Semi-bold)</td>
+                        <td>24px</td>
+                        <td>0.5px</td>
+                    </tr>
+                    <tr>
+                        <td>Medium</td>
+                        <td>14px</td>
+                        <td>600 (Semi-bold)</td>
+                        <td>20px</td>
+                        <td>0.3px</td>
+                    </tr>
+                    <tr>
+                        <td>Small</td>
+                        <td>12px</td>
+                        <td>600 (Semi-bold)</td>
+                        <td>18px</td>
+                        <td>0.2px</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Auto Layout -->
+        <section>
+            <h2>🧩 ¿Qué es Auto Layout y por qué es CRUCIAL?</h2>
+            
+            <div class="info-box">
+                <p class="text-blue-900 font-semibold mb-2">💡 El superpoder de los componentes</p>
+                <p class="text-blue-800">Auto Layout hace que los botones se adapten automáticamente al contenido. Sin él, tendrías que ajustar manualmente cada botón cada vez que cambia el texto.</p>
+            </div>
+
+            <div class="example-card">
+                <h3 class="mt-0">❌ Sin Auto Layout (problema)</h3>
+                <p class="text-gray-600 mb-4">El texto se sale del botón si es muy largo:</p>
+                <div class="inline-block px-5 py-3 bg-blue-600 text-white rounded-md" style="width: 120px; overflow: hidden;">
+                    Guardar cambios permanentemente
+                </div>
+                <p class="text-sm text-red-600 mt-2">😱 ¡Se desborda!</p>
+            </div>
+
+            <div class="example-card">
+                <h3 class="mt-0">✅ Con Auto Layout (solución)</h3>
+                <p class="text-gray-600 mb-4">El botón crece automáticamente con el texto:</p>
+                <button class="btn-primary">Guardar cambios permanentemente</button>
+                <p class="text-sm text-green-600 mt-2">✨ ¡Perfecto! Se adapta solo</p>
+            </div>
+
+            <div class="warning-box">
+                <p class="text-amber-900 font-semibold">🎯 Regla de oro:</p>
+                <p class="text-amber-800">TODOS los componentes de un design system DEBEN usar Auto Layout. No es opcional.</p>
+            </div>
+        </section>
+
+        <!-- Checklist Final -->
+        <section>
+            <h2>✅ Checklist de Calidad</h2>
+            <div class="example-card">
+                <h3 class="mt-0">Antes de dar por terminado tu sistema:</h3>
+                <div class="space-y-3">
+                    <div class="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input type="checkbox" class="w-5 h-5 text-blue-600">
+                        <label class="text-gray-700 cursor-pointer">Todos los botones usan Auto Layout</label>
+                    </div>
+                    
+                    <div class="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input type="checkbox" class="w-5 h-5 text-blue-600">
+                        <label class="text-gray-700 cursor-pointer">Las 12 variantes están correctamente nombradas</label>
+                    </div>
+                    
+                    <div class="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input type="checkbox" class="w-5 h-5 text-blue-600">
+                        <label class="text-gray-700 cursor-pointer">Property "State" tiene 4 valores (Default, Hover, Active, Disabled)</label>
+                    </div>
+                    
+                    <div class="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input type="checkbox" class="w-5 h-5 text-blue-600">
+                        <label class="text-gray-700 cursor-pointer">Property "Icon" tiene 3 valores (No, Izq, Dcha)</label>
+                    </div>
+                    
+                    <div class="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input type="checkbox" class="w-5 h-5 text-blue-600">
+                        <label class="text-gray-700 cursor-pointer">Los colores siguen la especificación exacta</label>
+                    </div>
+                    
+                    <div class="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input type="checkbox" class="w-5 h-5 text-blue-600">
+                        <label class="text-gray-700 cursor-pointer">Las sombras son correctas (externa, inset, ninguna)</label>
+                    </div>
+                    
+                    <div class="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input type="checkbox" class="w-5 h-5 text-blue-600">
+                        <label class="text-gray-700 cursor-pointer">El texto es Semi-bold (weight 600)</label>
+                    </div>
+                    
+                    <div class="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input type="checkbox" class="w-5 h-5 text-blue-600">
+                        <label class="text-gray-700 cursor-pointer">Los íconos están correctamente alineados</label>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Resumen Final -->
+        <section>
+            <div class="intro-box">
+                <h2 class="text-white mt-0">🎓 Lo que has aprendido</h2>
+                <ul class="text-white space-y-2 opacity-90">
+                    <li>✓ <strong>Por qué</strong> los design systems son esenciales para escalar</li>
+                    <li>✓ <strong>Qué tipos</strong> de botones existen (Primary, Secondary, Outline, Ghost)</li>
+                    <li>✓ <strong>Cómo funcionan</strong> los 4 estados (Default, Hover, Active, Disabled)</li>
+                    <li>✓ <strong>Por qué Auto Layout</strong> es la base de componentes profesionales</li>
+                    <li>✓ <strong>Cómo crear</strong> un componente con 12 variantes en Figma</li>
+                    <li>✓ <strong>Dónde usar</strong> cada variante en casos reales</li>
+                </ul>
+                <p class="text-white text-lg mt-6 font-semibold">
+                    🚀 Próximo paso: Replica este proceso para Secondary y Outline buttons
+                </p>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="text-center py-8 text-gray-500 text-sm border-t border-gray-200 mt-12">
+            <p>Guía interactiva para enseñar Design Systems · Octubre 2025</p>
+            <p class="mt-2">💡 <strong>Tip:</strong> Abre este HTML en clase y navega cada sección paso a paso</p>
+        </footer>
+
+    </div>
+
+</body></html>

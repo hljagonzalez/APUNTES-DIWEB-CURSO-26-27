@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<!-- saved from url=(0012)about:srcdoc -->
+<html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <script>
+      (function() {
+        // Capture host references before any artifact code runs: Window.parent
+        // is [Replaceable] (a top-level `var parent` in artifact code would
+        // replace the accessor with a data property), and a top-level
+        // `const crypto` would shadow the global — either would otherwise
+        // silently break the bridge for artifacts that worked before.
+        const realParent = window.parent;
+        const cryptoObj = window.crypto;
+        // html-to-image is only used by takeScreenshot: fetched on first use, not as a
+        // parser-blocking tag. Native fetch, captured before the proxy override below.
+        const realFetch = typeof window.fetch === 'function' ? window.fetch.bind(window) : null;
+        const HTML_TO_IMAGE_SRC = "https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.13/html-to-image.min.js";
+        const HTML_TO_IMAGE_INTEGRITY = "sha512-iZ2ORl595Wx6miw+GuadDet4WQbdSWS3JLMoNfY8cRGoEFy6oT3G9IbcrBeL6AfkgpA51ETt/faX6yLV+/gFJg==";
+        let htmlToImageLoad = null;
+        const loadHtmlToImage = () => {
+          if (!htmlToImageLoad) {
+            htmlToImageLoad = (realFetch
+              ? realFetch(HTML_TO_IMAGE_SRC, { integrity: HTML_TO_IMAGE_INTEGRITY, credentials: 'omit', referrerPolicy: 'no-referrer' })
+              : Promise.reject(new Error('fetch unavailable'))
+            )
+              .then((res) => {
+                if (!res.ok) throw new Error('html-to-image failed to load (' + res.status + ')');
+                return res.text();
+              })
+              .then((source) => {
+                // UMD bundle: hide the artifact's AMD/CommonJS globals so it takes the
+                // window-global branch; inline script text runs synchronously on insert.
+                const hidden = ['define', 'module', 'exports'].map((k) => {
+                  const entry = { k, own: Object.prototype.hasOwnProperty.call(window, k), v: window[k] };
+                  try { window[k] = undefined; } catch (e) {}
+                  return entry;
+                });
+                try {
+                  const el = document.createElement('script');
+                  el.text = source;
+                  (document.head || document.documentElement).appendChild(el);
+                } finally {
+                  hidden.forEach(({ k, own, v }) => {
+                    try { if (own) { window[k] = v; } else { delete window[k]; } } catch (e) {}
+                  });
+                }
+                if (!window.htmlToImage) throw new Error('html-to-image unavailable after load');
+                return window.htmlToImage;
+              });
+            // A failed load may be transient; let the next screenshot retry.
+            htmlToImageLoad.catch(() => { htmlToImageLoad = null; });
+          }
+          return htmlToImageLoad;
+        };
+        // crypto.randomUUID exists only in Secure Contexts; fall back to a
+        // unique non-crypto id elsewhere (http://LAN-IP dev flows) —
+        // uniqueness is what the bridge needs, unpredictability is
+        // defense-in-depth on top of the source guards.
+        const newRequestId =
+          cryptoObj && typeof cryptoObj.randomUUID === "function"
+            ? function () { return cryptoObj.randomUUID(); }
+            : function () { return Date.now() + "-" + Math.random(); };
+        const originalConsole = window.console;
+        window.console = {
+          log: (...args) => {
+            originalConsole.log(...args);
+            realParent.postMessage({ type: 'console', message: args.join(' ') }, '*');
+          },
+          error: (...args) => {
+            originalConsole.error(...args);
+            realParent.postMessage({ type: 'console', message: 'Error: ' + args.join(' ') }, '*');
+          },
+          warn: (...args) => {
+            originalConsole.warn(...args);
+            realParent.postMessage({ type: 'console', message: 'Warning: ' + args.join(' ') }, '*');
+          }
+        };
+
+        // Bridge request ids are crypto-random (not sequential) so they
+        // cannot be predicted by other frames in the tab.
+        let callbacksMap = new Map();
+        let streamControllers = new Map();
+        
+        window.claude = {
+          complete: (prompt) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'claudeComplete', id, prompt }, '*');
+            });
+          }
+        };
+
+        window.storage = {
+          get: (key, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageGet', id, key, shared }, '*');
+            });
+          },
+          set: (key, value, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageSet', id, key, value, shared }, '*');
+            });
+          },
+          delete: (key, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageDelete', id, key, shared }, '*');
+            });
+          },
+          list: (prefix, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageList', id, prefix, shared }, '*');
+            });
+          }
+        };
+
+        let pendingBlobs = new Map();
+        URL.createObjectURL = (blob) => {
+          // Store the blob and create an ID and URL for it
+          const blobId = `blob-${Date.now()}-${Math.random()}`;
+          pendingBlobs.set(blobId, blob);
+          return `blob-request://${blobId}`;
+        };
+
+        URL.revokeObjectURL = (url) => {
+          // Remove the blob from our store
+          const blobId = url.replace("blob-request://", "");
+          pendingBlobs.delete(blobId);
+        };
+
+        const getBlobFromURL = (url) => {
+          const blobId = url.replace("blob-request://", "");
+          return pendingBlobs.get(blobId);
+        };
+
+        // Override global fetch with streaming support
+        window.fetch = (url, init = {}) => {
+          return new Promise((resolve, reject) => {
+            const id = newRequestId();
+            const channelId = `fetch-${id}-${Date.now()}`;
+            
+            callbacksMap.set(id, { 
+              resolve: (response) => {
+                // Null-body statuses: Response(stream, {status: 204}) throws
+                // per the Fetch spec, which would escape this resolver and
+                // hang the artifact's await forever.
+                if (response.status === 204 || response.status === 205 || response.status === 304) {
+                  try {
+                    resolve(new Response(null, {
+                      status: response.status,
+                      statusText: response.statusText,
+                      headers: response.headers
+                    }));
+                  } catch (err) {
+                    // Invalid statusText/header bytes can throw here too.
+                    reject(new TypeError(
+                      'Bridge fetch: unconstructable response (status ' + response.status + ')'
+                    ));
+                  }
+                  return;
+                }
+                // Create a ReadableStream for the response body
+                const stream = new ReadableStream({
+                  start(controller) {
+                    streamControllers.set(channelId, controller);
+                  },
+                  cancel() {
+                    streamControllers.delete(channelId);
+                  }
+                });
+                
+                // Create and return the Response with the stream. Response()
+                // requires status in [200, 599]; an opaque/no-cors fetch
+                // forwards status 0, which would throw here and escape the
+                // resolver, hanging the artifact's await. Surface it as a
+                // network-error-shaped rejection instead.
+                try {
+                  resolve(new Response(stream, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers
+                  }));
+                } catch (err) {
+                  streamControllers.delete(channelId);
+                  reject(new TypeError(
+                    'Bridge fetch: unconstructable response (status ' + response.status + ')'
+                  ));
+                }
+              },
+              reject,
+              channelId
+            });
+            
+            realParent.postMessage({
+              type: 'proxyFetch',
+              id,
+              url,
+              init,
+              channelId
+            }, '*');
+          });
+        };
+
+        window.addEventListener('message', async (event) => {
+          // Only the embedding parent may drive the bridge — sibling and
+          // nested frames can also postMessage into this window.
+          if (event.source !== realParent) return;
+          if (event.data.type === 'takeScreenshot') {
+            // Echo the request's nonce so the requester can correlate the
+            // reply to ITS request — a reply without the expected nonce
+            // (e.g. from a stale pre-remount artifact) is ignored upstream.
+            const screenshotNonce = event.data.nonce;
+            const rootElement = document.getElementById('artifacts-component-root-html');
+            if (!rootElement) {
+              realParent.postMessage({
+                type: 'screenshotError',
+                nonce: screenshotNonce,
+                error: new Error('Root element not found'),
+              }, '*');
+              return;
+            }
+            // Catch CDN load failures and toPng errors so the parent always
+            // gets a response instead of hanging forever.
+            try {
+              const htmlToImage = await loadHtmlToImage();
+              const screenshot = await htmlToImage.toPng(rootElement, {
+                imagePlaceholder:
+                  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAA1JREFUGFdjePDgwX8ACOQDoNsk0PMAAAAASUVORK5CYII=",
+              });
+              realParent.postMessage({
+                type: 'screenshotData',
+                nonce: screenshotNonce,
+                data: screenshot,
+              }, '*');
+            } catch (err) {
+              realParent.postMessage({
+                type: 'screenshotError',
+                nonce: screenshotNonce,
+                error: err instanceof Error ? err : new Error(String(err)),
+              }, '*');
+            }
+          } else if (event.data.type === 'claudeComplete') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.completion);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'proxyFetchResponse') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+              callbacksMap.delete(event.data.id);
+            } else {
+              // Initial response with headers, status, etc.
+              callback.resolve({
+                status: event.data.status,
+                statusText: event.data.statusText,
+                headers: event.data.headers
+              });
+              // Don't delete the callback yet if streaming
+              if (!event.data.body) {
+                callbacksMap.delete(event.data.id);
+              }
+            }
+          } else if (event.data.type === 'proxyFetchStream') {
+            // Handle streaming data chunks
+            const controller = streamControllers.get(event.data.channelId);
+            if (controller) {
+              if (event.data.error) {
+                controller.error(new Error(event.data.error));
+                streamControllers.delete(event.data.channelId);
+              } else if (event.data.done) {
+                controller.close();
+                streamControllers.delete(event.data.channelId);
+                // Clean up the callback
+                const callback = Array.from(callbacksMap.entries()).find(
+                  ([_, value]) => value.channelId === event.data.channelId
+                );
+                if (callback) {
+                  callbacksMap.delete(callback[0]);
+                }
+              } else if (event.data.chunk) {
+                controller.enqueue(new Uint8Array(event.data.chunk));
+              }
+            }
+          } else if (event.data.type === 'storageGet') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageSet') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageDelete') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageList') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          }
+        });
+
+        window.addEventListener('click', (event) => {
+          const isEl = event.target instanceof HTMLElement;
+          if (!isEl) return;
+    
+          // find ancestor links
+          const linkEl = event.target.closest("a");
+          if (!linkEl || !linkEl.href) return;
+    
+          event.preventDefault();
+          event.stopImmediatePropagation();
+    
+          if (linkEl.href.startsWith("blob-request:")) {
+            const blob = getBlobFromURL(linkEl.href);
+            if (!blob) return;
+            void blob.arrayBuffer().then((data) => {
+              realParent.postMessage({
+                type: "downloadFile",
+                filename: linkEl.download,
+                data,
+                mimeType: blob.type || "application/octet-stream",
+              });
+            });
+          } else if (linkEl.href.startsWith("data:")) {
+            const [header, base64Data] = linkEl.href.split(",");
+            const mimeMatch = header.match(/data:([^;]+)/);
+            const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+            const binaryString = atob(base64Data);
+            const data = Uint8Array.from(binaryString, (c) =>
+              c.charCodeAt(0),
+            ).buffer;
+            realParent.postMessage({
+              type: "downloadFile",
+              filename: linkEl.download,
+              data,
+              mimeType,
+            });
+          } else {
+            let linkUrl;
+            try {
+              linkUrl = new URL(linkEl.href);
+            } catch (error) {
+              return;
+            }
+    
+            if (linkUrl.hostname === window.location.hostname) return;
+      
+            realParent.postMessage({
+              type: 'openExternal',
+              href: linkEl.href,
+            }, '*');
+          }
+      });
+
+        const originalOpen = window.open;
+        window.open = function (url) {
+          realParent.postMessage({
+            type: "openExternal",
+            href: url,
+          }, "*");
+        };
+
+        window.addEventListener('error', (event) => {
+          realParent.postMessage({ type: 'console', message: 'Uncaught Error: ' + event.message }, '*');
+        });
+      })();
+    </script>
+  
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Tipográfico</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com/">
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=Playfair+Display:wght@700;800&amp;family=Poppins:wght@600;700;800&amp;display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            background: #f8fafc;
+            color: #1f2937;
+        }
+        
+        .main-header {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+        }
+        
+        .main-header h1 {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 15px;
+        }
+        
+        .main-header p {
+            font-size: 18px;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .section {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            margin: 30px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .section-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .section-subtitle {
+            color: #6b7280;
+            font-size: 16px;
+            margin-bottom: 30px;
+            font-weight: 400;
+        }
+        
+        /* PARTE 1: ESCALAS TIPOGRÁFICAS */
+        .type-scale {
+            display: grid;
+            gap: 30px;
+            margin: 40px 0;
+        }
+        
+        .type-item {
+            border-left: 4px solid #3b82f6;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 0 12px 12px 0;
+            transition: all 0.3s;
+        }
+        
+        .type-item:hover {
+            background: #eff6ff;
+            transform: translateX(5px);
+        }
+        
+        .type-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .type-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #3b82f6;
+            font-family: 'Monaco', monospace;
+        }
+        
+        .type-specs {
+            font-size: 12px;
+            color: #6b7280;
+            font-family: 'Monaco', monospace;
+        }
+        
+        .type-example-h1 {
+            font-size: 72px;
+            font-weight: 800;
+            line-height: 1.1;
+            color: #111827;
+        }
+        
+        .type-example-h2 {
+            font-size: 48px;
+            font-weight: 700;
+            line-height: 1.2;
+            color: #111827;
+        }
+        
+        .type-example-h3 {
+            font-size: 32px;
+            font-weight: 600;
+            line-height: 1.3;
+            color: #1f2937;
+        }
+        
+        .type-example-h4 {
+            font-size: 24px;
+            font-weight: 600;
+            line-height: 1.4;
+            color: #1f2937;
+        }
+        
+        .type-example-h5 {
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 1.4;
+            color: #374151;
+        }
+        
+        .type-example-body {
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 1.6;
+            color: #4b5563;
+        }
+        
+        .type-example-body-small {
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 1.5;
+            color: #6b7280;
+        }
+        
+        .type-example-caption {
+            font-size: 12px;
+            font-weight: 400;
+            line-height: 1.4;
+            color: #9ca3af;
+        }
+        
+        .type-example-button {
+            font-size: 16px;
+            font-weight: 600;
+            line-height: 1;
+            color: white;
+            background: #3b82f6;
+            padding: 14px 28px;
+            border-radius: 8px;
+            display: inline-block;
+        }
+        
+        .type-usage {
+            margin-top: 12px;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #6b7280;
+        }
+        
+        .type-usage strong {
+            color: #1f2937;
+        }
+        
+        /* COMPARACIÓN DE FUENTES */
+        .font-comparison {
+            display: grid;
+            gap: 30px;
+            margin: 40px 0;
+        }
+        
+        .font-option {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 2px solid #bae6fd;
+            border-radius: 16px;
+            padding: 30px;
+            transition: all 0.3s;
+        }
+        
+        .font-option:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(59, 130, 246, 0.15);
+        }
+        
+        .font-option-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #0c4a6e;
+            margin-bottom: 15px;
+        }
+        
+        .font-sample {
+            margin: 20px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+        }
+        
+        .font-inter .font-sample {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .font-poppins-inter .font-sample-display {
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        .font-poppins-inter .font-sample-body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .font-playfair-inter .font-sample-display {
+            font-family: 'Playfair Display', serif;
+        }
+        
+        .font-playfair-inter .font-sample-body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .sample-heading {
+            font-size: 36px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 10px;
+        }
+        
+        .sample-subheading {
+            font-size: 20px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 15px;
+        }
+        
+        .sample-body {
+            font-size: 16px;
+            font-weight: 400;
+            color: #6b7280;
+            line-height: 1.6;
+        }
+        
+        .best-for {
+            margin-top: 15px;
+            padding: 12px;
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 8px;
+            font-size: 13px;
+            color: #1e40af;
+        }
+        
+        /* DEMO APLICADO */
+        .demo-section {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 16px;
+            overflow: hidden;
+            margin: 40px 0;
+        }
+        
+        .demo-header {
+            background: #1f2937;
+            color: white;
+            padding: 25px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .demo-logo {
+            font-size: 24px;
+            font-weight: 800;
+        }
+        
+        .demo-nav {
+            display: flex;
+            gap: 30px;
+        }
+        
+        .demo-nav a {
+            color: #d1d5db;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 16px;
+            transition: color 0.2s;
+        }
+        
+        .demo-nav a:hover {
+            color: white;
+        }
+        
+        .demo-hero {
+            padding: 80px 30px;
+            text-align: center;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        }
+        
+        .demo-hero h1 {
+            font-size: 64px;
+            font-weight: 800;
+            color: #111827;
+            margin-bottom: 20px;
+            line-height: 1.1;
+        }
+        
+        .demo-hero p {
+            font-size: 20px;
+            color: #6b7280;
+            margin-bottom: 35px;
+            font-weight: 400;
+        }
+        
+        .demo-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+            padding: 16px 32px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            color: #3b82f6;
+            padding: 16px 32px;
+            border: 2px solid #3b82f6;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-secondary:hover {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .demo-content {
+            padding: 60px 30px;
+        }
+        
+        .demo-section-title {
+            font-size: 42px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 20px;
+        }
+        
+        .demo-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+        
+        .demo-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 16px;
+            padding: 30px;
+            transition: all 0.3s;
+        }
+        
+        .demo-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+        }
+        
+        .card-icon {
+            width: 50px;
+            height: 50px;
+            background: #dbeafe;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        
+        .card-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 12px;
+        }
+        
+        .card-description {
+            font-size: 16px;
+            color: #6b7280;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        
+        .card-meta {
+            font-size: 14px;
+            color: #9ca3af;
+            font-weight: 500;
+        }
+        
+        /* GUÍA DE REFERENCIA */
+        .reference-table {
+            width: 100%;
+            margin: 30px 0;
+            border-collapse: separate;
+            border-spacing: 0;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .reference-table thead {
+            background: #f9fafb;
+        }
+        
+        .reference-table th {
+            padding: 16px;
+            text-align: left;
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        .reference-table td {
+            padding: 16px;
+            font-size: 14px;
+            color: #6b7280;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .reference-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .reference-table tbody tr:hover {
+            background: #f9fafb;
+        }
+        
+        .weight-demo {
+            font-family: 'Monaco', monospace;
+            font-size: 12px;
+            color: #3b82f6;
+            font-weight: 600;
+        }
+        
+        .tip-box {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 5px solid #f59e0b;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 0 12px 12px 0;
+        }
+        
+        .tip-title {
+            color: #92400e;
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .tip-text {
+            color: #78350f;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .tool-card {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            padding: 24px;
+            border-radius: 12px;
+            border: 2px solid #bbf7d0;
+            transition: all 0.3s;
+        }
+        
+        .tool-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(34, 197, 94, 0.15);
+        }
+        
+        .tool-name {
+            font-weight: 700;
+            color: #14532d;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        
+        .tool-desc {
+            font-size: 14px;
+            color: #166534;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+        
+        .tool-link {
+            display: inline-block;
+            color: #15803d;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            padding: 6px 12px;
+            background: rgba(34, 197, 94, 0.2);
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .tool-link:hover {
+            background: rgba(34, 197, 94, 0.3);
+        }
+        
+        @media (max-width: 768px) {
+            .main-header h1 {
+                font-size: 32px;
+            }
+            
+            .type-example-h1 {
+                font-size: 48px;
+            }
+            
+            .type-example-h2 {
+                font-size: 36px;
+            }
+            
+            .demo-hero h1 {
+                font-size: 40px;
+            }
+            
+            .demo-section-title {
+                font-size: 32px;
+            }
+            
+            .reference-table {
+                font-size: 12px;
+            }
+            
+            .reference-table th,
+            .reference-table td {
+                padding: 12px 8px;
+            }
+        }
+    </style>
+</head>
+<body id="artifacts-component-root-html">
+    <div class="main-header">
+        <h1>🔤 Sistema Tipográfico Completo</h1>
+        <p>Guía definitiva para elegir y usar tipografías en diseño web</p>
+    </div>
+
+    <div class="container">
+        <!-- PARTE 1: ESCALA TIPOGRÁFICA -->
+        <div class="section">
+            <h2 class="section-title">
+                <span style="font-size: 36px;">📏</span>
+                Escala Tipográfica Completa
+            </h2>
+            <p class="section-subtitle">Todos los niveles de jerarquía que necesitas en tu sistema de diseño</p>
+
+            <div class="type-scale">
+                <div class="type-item">
+                    <div class="type-label">
+                        <span class="type-name">H1 - Hero/Display</span>
+                        <span class="type-specs">72px • 800 (ExtraBold) • Line-height 1.1</span>
+                    </div>
+                    <div class="type-example-h1">El título más importante</div>
+                    <div class="type-usage">
+                        <strong>Uso:</strong> Títulos principales de página, heroes, landing pages. Solo 1 por página.
+                    </div>
+                </div>
+
+                <div class="type-item">
+                    <div class="type-label">
+                        <span class="type-name">H2 - Section Heading</span>
+                        <span class="type-specs">48px • 700 (Bold) • Line-height 1.2</span>
+                    </div>
+                    <div class="type-example-h2">Título de sección principal</div>
+                    <div class="type-usage">
+                        <strong>Uso:</strong> Títulos de secciones principales, divisiones importantes del contenido.
+                    </div>
+                </div>
+
+                <div class="type-item">
+                    <div class="type-label">
+                        <span class="type-name">H3 - Subsection</span>
+                        <span class="type-specs">32px • 600 (SemiBold) • Line-height 1.3</span>
+                    </div>
+                    <div class="type-example-h3">Subsección o título de card</div>
+                    <div class="type-usage">
+                        <strong>Uso:</strong> Subsecciones, títulos de cards grandes, bloques de contenido destacados.
+                    </div>
+                </div>
+
+                <div class="type-item">
+                    <div class="type-label">
+                        <span class="type-name">H4 - Component Title</span>
+                        <span class="type-specs">24px • 600 (SemiBold) • Line-height 1.4</span>
+                    </div>
+                    <div class="type-example-h4">Título de componente</div>
+                    <div class="type-usage">
+                        <strong>Uso:</strong> Títulos de componentes pequeños, cards medianas, modales.
+                    </div>
+                </div>
+
+                <div class="type-item">
+                    <div class="type-label">
+                        <span class="type-name">H5 - Label/Subtitle</span>
+                        <span class="type-specs">18px • 600 (SemiBold) • Line-height 1.4</span>
+                    </div>
+                    <div class="type-example-h5">Label o subtítulo destacado</div>
+                    <div class="type-usage">
+                        <strong>Uso:</strong> Labels importantes, subtítulos, categorías, metadatos destacados.
+                    </div>
+                </div>
+
+                <div class="type-item">
+                    <div class="type-label">
+                        <span class="type-name">Body - Texto principal</span>
+                        <span class="type-specs">16px • 400 (Regular) • Line-height 1.6</span>
+                    </div>
+                    <div class="type-example-body">Este es el texto principal que se usa para párrafos, descripciones largas y la mayor parte del contenido. Debe ser muy legible y cómodo de leer en bloques largos de texto.</div>
+                    <div class="type-usage">
+                        <strong>Uso:</strong> Párrafos, descripciones, contenido principal. El 70% de tu texto.
+                    </div>
+                </div>
+
+                <div class="type-item">
+                    <div class="type-label">
+                        <span class="type-name">Body Small - Texto secundario</span>
+                        <span class="type-specs">14px • 400 (Regular) • Line-height 1.5</span>
+                    </div>
+                    <div class="type-example-body-small">Texto secundario más pequeño para información complementaria, descripciones breves o metadatos.</div>
+                    <div class="type-usage">
+                        <strong>Uso:</strong> Texto secundario, metadatos, fechas, información complementaria.
+                    </div>
+                </div>
+
+                <div class="type-item">
+                    <div class="type-label">
+                        <span class="type-name">Caption - Anotaciones</span>
+                        <span class="type-specs">12px • 400 (Regular) • Line-height 1.4</span>
+                    </div>
+                    <div class="type-example-caption">Pie de foto, notas al pie, timestamps, información terciaria</div>
+                    <div class="type-usage">
+                        <strong>Uso:</strong> Pies de foto, notas, timestamps, información muy secundaria.
+                    </div>
+                </div>
+
+                <div class="type-item">
+                    <div class="type-label">
+                        <span class="type-name">Button - Botones y CTAs</span>
+                        <span class="type-specs">16px • 600 (SemiBold) • Line-height 1</span>
+                    </div>
+                    <div class="type-example-button">Botón de acción</div>
+                    <div class="type-usage">
+                        <strong>Uso:</strong> Todos los botones, CTAs, elementos interactivos importantes.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PARTE 2: OPCIONES DE FUENTES -->
+        <div class="section">
+            <h2 class="section-title">
+                <span style="font-size: 36px;">🎨</span>
+                Opciones: 1 vs 2 Fuentes
+            </h2>
+            <p class="section-subtitle">Compara las diferentes aproximaciones y elige la que mejor se adapte a tu proyecto</p>
+
+            <div class="font-comparison">
+                <!-- OPCIÓN 1: UNA FUENTE -->
+                <div class="font-option font-inter">
+                    <div class="font-option-title">✅ Opción 1: Una sola fuente (Inter)</div>
+                    <div class="font-sample">
+                        <div class="sample-heading">Bienvenido a nuestra plataforma</div>
+                        <div class="sample-subheading">Subtítulo descriptivo del contenido</div>
+                        <div class="sample-body">Inter es una fuente versátil que funciona perfectamente tanto para títulos como para texto corrido. Es la opción más segura y profesional para aplicaciones web y dashboards modernos.</div>
+                    </div>
+                    <div class="best-for">
+                        <strong>✓ Mejor para:</strong> Apps, dashboards, plataformas SaaS, diseños minimalistas, proyectos profesionales
+                    </div>
+                </div>
+
+                <!-- OPCIÓN 2: DOS FUENTES - MODERNA -->
+                <div class="font-option font-poppins-inter">
+                    <div class="font-option-title">✨ Opción 2: Dos fuentes - Moderna (Poppins + Inter)</div>
+                    <div class="font-sample">
+                        <div class="font-sample-display">
+                            <div class="sample-heading">Bienvenido a nuestra plataforma</div>
+                            <div class="sample-subheading">Subtítulo descriptivo del contenido</div>
+                        </div>
+                        <div class="font-sample-body">
+                            <div class="sample-body">Esta combinación usa Poppins para títulos (más personalidad) e Inter para texto corrido (máxima legibilidad). Perfecta para proyectos que necesitan destacar visualmente.</div>
+                        </div>
+                    </div>
+                    <div class="best-for">
+                        <strong>✓ Mejor para:</strong> Landing pages, sitios corporativos modernos, startups, productos creativos
+                    </div>
+                </div>
+
+                <!-- OPCIÓN 3: DOS FUENTES - ELEGANTE -->
+                <div class="font-option font-playfair-inter">
+                    <div class="font-option-title">🎩 Opción 3: Dos fuentes - Elegante (Playfair + Inter)</div>
+                    <div class="font-sample">
+                        <div class="font-sample-display">
+                            <div class="sample-heading">Bienvenido a nuestra plataforma</div>
+                            <div class="sample-subheading">Subtítulo descriptivo del contenido</div>
+                        </div>
+                        <div class="font-sample-body">
+                            <div class="sample-body">Playfair Display aporta elegancia y sofisticación a los títulos, mientras que Inter mantiene la legibilidad en el texto. Contraste serif-sans serif muy efectivo.</div>
+                        </div>
+                    </div>
+                    <div class="best-for">
+                        <strong>✓ Mejor para:</strong> Blogs, revistas digitales, marcas de lujo, contenido editorial, portfolios
+                    </div>
+                </div>
+            </div>
+
+            <div class="tip-box">
+                <div class="tip-title">💡 Consejo profesional</div>
+                <div class="tip-text">
+                    <strong>¿Cuál elegir?</strong> Si tienes dudas, empieza con una sola fuente (Inter, Roboto o Poppins). Es más fácil de mantener consistente y siempre se ve profesional. Usa dos fuentes solo si realmente aporta valor a tu marca o contenido.
+                </div>
+            </div>
+        </div>
+
+        <!-- PARTE 3: DEMO APLICADO -->
+        <div class="section">
+            <h2 class="section-title">
+                <span style="font-size: 36px;">🎯</span>
+                Sistema Aplicado en Diseño Real
+            </h2>
+            <p class="section-subtitle">Ve cómo funciona todo el sistema tipográfico en un diseño completo</p>
+
+            <div class="demo-section">
+                <div class="demo-header">
+                    <div class="demo-logo">TechFlow</div>
+                    <nav class="demo-nav">
+                        <a href="https://www.claudeusercontent.com/artifact/10e06244-1169-4698-b88d-ad0b33b394d6?domain=claude.ai&amp;parentOrigin=https%3A%2F%2Fclaude.ai&amp;errorReportingMode=parent&amp;formattedSpreadsheets=true&amp;contentType=text%2Fhtml#">Productos</a>
+                        <a href="https://www.claudeusercontent.com/artifact/10e06244-1169-4698-b88d-ad0b33b394d6?domain=claude.ai&amp;parentOrigin=https%3A%2F%2Fclaude.ai&amp;errorReportingMode=parent&amp;formattedSpreadsheets=true&amp;contentType=text%2Fhtml#">Soluciones</a>
+                        <a href="https://www.claudeusercontent.com/artifact/10e06244-1169-4698-b88d-ad0b33b394d6?domain=claude.ai&amp;parentOrigin=https%3A%2F%2Fclaude.ai&amp;errorReportingMode=parent&amp;formattedSpreadsheets=true&amp;contentType=text%2Fhtml#">Recursos</a>
+                        <a href="https://www.claudeusercontent.com/artifact/10e06244-1169-4698-b88d-ad0b33b394d6?domain=claude.ai&amp;parentOrigin=https%3A%2F%2Fclaude.ai&amp;errorReportingMode=parent&amp;formattedSpreadsheets=true&amp;contentType=text%2Fhtml#">Contacto</a>
+                    </nav>
+                </div>
+
+                <div class="demo-hero">
+                    <h1>Transforma tu negocio con tecnología</h1>
+                    <p>Soluciones innovadoras para empresas que quieren crecer en la era digital</p>
+                    <div class="demo-buttons">
+                        <button class="btn-primary">Comenzar gratis</button>
+                        <button class="btn-secondary">Ver demo</button>
+                    </div>
+                </div>
+
+                <div class="demo-content">
+                    <h2 class="demo-section-title">Nuestros servicios</h2>
+                    
+                    <div class="demo-cards">
+                        <div class="demo-card">
+                            <div class="card-icon">💻</div>
+                            <h3 class="card-title">Desarrollo Web</h3>
+                            <p class="card-description">Creamos aplicaciones web modernas, escalables y optimizadas para tus usuarios. Tecnología de última generación.</p>
+                            <p class="card-meta">Desde $2,500/mes</p>
+                        </div>
+
+                        <div class="demo-card">
+                            <div class="card-icon">📱</div>
+                            <h3 class="card-title">Apps Móviles</h3>
+                            <p class="card-description">Desarrollamos aplicaciones nativas e híbridas para iOS y Android con la mejor experiencia de usuario.</p>
+                            <p class="card-meta">Desde $3,500/mes</p>
+                        </div>
+
+                        <div class="demo-card">
+                            <div class="card-icon">☁️</div>
+                            <h3 class="card-title">Cloud Solutions</h3>
+                            <p class="card-description">Infraestructura en la nube segura, escalable y optimizada para el rendimiento de tu negocio.</p>
+                            <p class="card-meta">Desde $1,800/mes</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 20px; margin-top: 30px; border-radius: 0 12px 12px 0;">
+                <h4 style="color: #15803d; margin-bottom: 12px; font-size: 16px; font-weight: 600;">🎯 Observa la jerarquía - Qué estilo usar en cada elemento</h4>
+                <ul style="color: #166534; font-size: 14px; line-height: 1.8; padding-left: 20px;">
+                    <li><strong>Logo → H4 (24px, 600):</strong> Título de componente, destaca sin dominar</li>
+                    <li><strong>Navegación → Body (16px, 400):</strong> Texto principal, legible y secundario</li>
+                    <li><strong>Hero título → H1 (72px, 800):</strong> El protagonista absoluto de la página</li>
+                    <li><strong>Hero descripción → Body (16px, 400):</strong> Texto principal estándar</li>
+                    <li><strong>Botones → Button (16px, 600):</strong> Estilo específico para CTAs</li>
+                    <li><strong>Título de sección → H2 (48px, 700):</strong> Títulos de secciones principales</li>
+                    <li><strong>Título de card → H4 (24px, 600):</strong> Títulos de componentes individuales</li>
+                    <li><strong>Descripción de card → Body (16px, 400):</strong> Texto principal, fácil de leer</li>
+                    <li><strong>Metadata de card → Body Small (14px, 400):</strong> Información secundaria</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- PARTE 4: TABLA DE REFERENCIA -->
+        <div class="section">
+            <h2 class="section-title">
+                <span style="font-size: 36px;">📋</span>
+                Tabla de Referencia Rápida
+            </h2>
+            <p class="section-subtitle">Guarda esta tabla para tenerla siempre a mano en tus proyectos</p>
+
+            <table class="reference-table">
+                <thead>
+                    <tr>
+                        <th>Elemento</th>
+                        <th>Tamaño</th>
+                        <th>Peso</th>
+                        <th>Line Height</th>
+                        <th>Uso principal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>H1</strong></td>
+                        <td>48-72px</td>
+                        <td><span class="weight-demo">700-800</span></td>
+                        <td>1.1</td>
+                        <td>Títulos principales, heroes</td>
+                    </tr>
+                    <tr>
+                        <td><strong>H2</strong></td>
+                        <td>36-48px</td>
+                        <td><span class="weight-demo">700</span></td>
+                        <td>1.2</td>
+                        <td>Títulos de sección</td>
+                    </tr>
+                    <tr>
+                        <td><strong>H3</strong></td>
+                        <td>28-32px</td>
+                        <td><span class="weight-demo">600</span></td>
+                        <td>1.3</td>
+                        <td>Subsecciones, cards grandes</td>
+                    </tr>
+                    <tr>
+                        <td><strong>H4</strong></td>
+                        <td>20-24px</td>
+                        <td><span class="weight-demo">600</span></td>
+                        <td>1.4</td>
+                        <td>Títulos de componentes</td>
+                    </tr>
+                    <tr>
+                        <td><strong>H5</strong></td>
+                        <td>16-18px</td>
+                        <td><span class="weight-demo">600</span></td>
+                        <td>1.4</td>
+                        <td>Labels, subtítulos</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Body</strong></td>
+                        <td>16px</td>
+                        <td><span class="weight-demo">400</span></td>
+                        <td>1.5-1.6</td>
+                        <td>Texto principal, párrafos</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Body Small</strong></td>
+                        <td>14px</td>
+                        <td><span class="weight-demo">400</span></td>
+                        <td>1.5</td>
+                        <td>Texto secundario</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Caption</strong></td>
+                        <td>12px</td>
+                        <td><span class="weight-demo">400</span></td>
+                        <td>1.4</td>
+                        <td>Pies de foto, notas</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Button</strong></td>
+                        <td>14-16px</td>
+                        <td><span class="weight-demo">500-600</span></td>
+                        <td>1</td>
+                        <td>Botones, CTAs</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="tip-box">
+                <div class="tip-title">📌 Pesos que debes importar</div>
+                <div class="tip-text">
+                    <strong>Mínimo necesario:</strong> 400 (Regular), 600 (SemiBold), 700 (Bold)<br>
+                    <strong>Ideal completo:</strong> 400 (Regular), 500 (Medium), 600 (SemiBold), 700 (Bold), 800 (ExtraBold)
+                </div>
+            </div>
+        </div>
+
+        <!-- PARTE 5: HERRAMIENTAS -->
+        <div class="section">
+            <h2 class="section-title">
+                <span style="font-size: 36px;">🛠️</span>
+                Herramientas Recomendadas
+            </h2>
+            <p class="section-subtitle">Las mejores herramientas para encontrar y combinar fuentes</p>
+
+            <div class="tools-grid">
+                <div class="tool-card">
+                    <div class="tool-name">Google Fonts</div>
+                    <div class="tool-desc">La biblioteca más grande de fuentes gratuitas. Busca en "Popular pairings" para ver combinaciones probadas.</div>
+                    <a href="https://fonts.google.com/" target="_blank" class="tool-link">Visitar →</a>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-name">FontPair.co</div>
+                    <div class="tool-desc">Combinaciones pre-curadas y validadas. Perfecta para principiantes que no saben qué fuentes combinar.</div>
+                    <a href="https://www.fontpair.co/" target="_blank" class="tool-link">Visitar →</a>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-name">Fontjoy.com</div>
+                    <div class="tool-desc">Genera combinaciones de fuentes usando IA. Ajusta el nivel de contraste entre ellas con un slider.</div>
+                    <a href="https://fontjoy.com/" target="_blank" class="tool-link">Visitar →</a>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-name">Type Scale</div>
+                    <div class="tool-desc">Genera tu escala tipográfica completa automáticamente. Define tamaños proporcionales perfectos.</div>
+                    <a href="https://type-scale.com/" target="_blank" class="tool-link">Visitar →</a>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-name">Archetype</div>
+                    <div class="tool-desc">Compara fuentes lado a lado para ver cómo se ven juntas antes de decidir.</div>
+                    <a href="https://archetypeapp.com/" target="_blank" class="tool-link">Visitar →</a>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-name">Fonts In Use</div>
+                    <div class="tool-desc">Inspiración de fuentes usadas en proyectos reales. Ve ejemplos de aplicación práctica.</div>
+                    <a href="https://fontsinuse.com/" target="_blank" class="tool-link">Visitar →</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- PARTE 6: CONSEJOS FINALES -->
+        <div class="section" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white;">
+            <h2 style="color: white; font-size: 28px; margin-bottom: 25px; font-weight: 700;">✨ Reglas de Oro para Tipografía</h2>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 25px;">
+                <div style="background: rgba(255,255,255,0.1); padding: 25px; border-radius: 12px; backdrop-filter: blur(10px);">
+                    <div style="font-size: 32px; margin-bottom: 12px;">1️⃣</div>
+                    <h3 style="font-size: 18px; margin-bottom: 10px; font-weight: 600;">Máximo 2 fuentes</h3>
+                    <p style="font-size: 14px; opacity: 0.9; line-height: 1.6;">Más de dos fuentes crea confusión visual. Una sola fuente versátil es mejor que tres mediocres.</p>
+                </div>
+
+                <div style="background: rgba(255,255,255,0.1); padding: 25px; border-radius: 12px; backdrop-filter: blur(10px);">
+                    <div style="font-size: 32px; margin-bottom: 12px;">2️⃣</div>
+                    <h3 style="font-size: 18px; margin-bottom: 10px; font-weight: 600;">Jerarquía clara</h3>
+                    <p style="font-size: 14px; opacity: 0.9; line-height: 1.6;">La diferencia entre H1 y H2 debe ser obvia. Mínimo 8-12px de diferencia entre niveles.</p>
+                </div>
+
+                <div style="background: rgba(255,255,255,0.1); padding: 25px; border-radius: 12px; backdrop-filter: blur(10px);">
+                    <div style="font-size: 32px; margin-bottom: 12px;">3️⃣</div>
+                    <h3 style="font-size: 18px; margin-bottom: 10px; font-weight: 600;">Line-height correcto</h3>
+                    <p style="font-size: 14px; opacity: 0.9; line-height: 1.6;">Títulos: 1.1-1.3. Texto corrido: 1.5-1.6. Nunca menos de 1.4 para legibilidad.</p>
+                </div>
+
+                <div style="background: rgba(255,255,255,0.1); padding: 25px; border-radius: 12px; backdrop-filter: blur(10px);">
+                    <div style="font-size: 32px; margin-bottom: 12px;">4️⃣</div>
+                    <h3 style="font-size: 18px; margin-bottom: 10px; font-weight: 600;">Contraste suficiente</h3>
+                    <p style="font-size: 14px; opacity: 0.9; line-height: 1.6;">Si usas dos fuentes, que sean claramente diferentes. Serif + Sans-serif funciona siempre.</p>
+                </div>
+
+                <div style="background: rgba(255,255,255,0.1); padding: 25px; border-radius: 12px; backdrop-filter: blur(10px);">
+                    <div style="font-size: 32px; margin-bottom: 12px;">5️⃣</div>
+                    <h3 style="font-size: 18px; margin-bottom: 10px; font-weight: 600;">Peso variable</h3>
+                    <p style="font-size: 14px; opacity: 0.9; line-height: 1.6;">Importa mínimo 3 pesos: Regular (400), SemiBold (600), Bold (700) para crear jerarquía.</p>
+                </div>
+
+                <div style="background: rgba(255,255,255,0.1); padding: 25px; border-radius: 12px; backdrop-filter: blur(10px);">
+                    <div style="font-size: 32px; margin-bottom: 12px;">6️⃣</div>
+                    <h3 style="font-size: 18px; margin-bottom: 10px; font-weight: 600;">16px mínimo</h3>
+                    <p style="font-size: 14px; opacity: 0.9; line-height: 1.6;">El texto principal nunca debe ser menor de 16px. Es el estándar de legibilidad web.</p>
+                </div>
+            </div>
+
+            <div style="margin-top: 40px; padding: 25px; background: rgba(255,255,255,0.15); border-radius: 12px; backdrop-filter: blur(10px);">
+                <h3 style="font-size: 20px; margin-bottom: 15px; font-weight: 700;">🎯 Proceso recomendado para tus alumnos</h3>
+                <ol style="font-size: 15px; line-height: 2; padding-left: 25px;">
+                    <li>Elige 1 fuente versátil (Inter, Roboto, Poppins) o una combinación de 2</li>
+                    <li>Define tu escala tipográfica usando Type Scale</li>
+                    <li>Importa los pesos necesarios: 400, 500, 600, 700</li>
+                    <li>Crea estilos en Figma para cada nivel (H1-H5, Body, etc.)</li>
+                    <li>Aplica en un diseño real y ajusta si es necesario</li>
+                    <li>Documenta tu sistema para mantener consistencia</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- RESUMEN FINAL -->
+        <div class="section" style="border: 3px solid #3b82f6; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);">
+            <h2 style="color: #1e40af; font-size: 28px; margin-bottom: 20px; font-weight: 700; text-align: center;">
+                📚 Resumen Ejecutivo
+            </h2>
+            
+            <div style="display: grid; gap: 20px; margin-top: 25px;">
+                <div style="background: white; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6;">
+                    <h4 style="color: #1e40af; margin-bottom: 10px; font-weight: 600;">¿Cuántas fuentes?</h4>
+                    <p style="color: #1e40af; font-size: 14px;">1 fuente versátil (más común) o 2 fuentes con contraste claro (más expresivo). Nunca 3+.</p>
+                </div>
+
+                <div style="background: white; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6;">
+                    <h4 style="color: #1e40af; margin-bottom: 10px; font-weight: 600;">¿Qué pesos importar?</h4>
+                    <p style="color: #1e40af; font-size: 14px;">Mínimo: 400, 600, 700 | Ideal: 400, 500, 600, 700, 800</p>
+                </div>
+
+                <div style="background: white; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6;">
+                    <h4 style="color: #1e40af; margin-bottom: 10px; font-weight: 600;">¿Cuántos tamaños necesito?</h4>
+                    <p style="color: #1e40af; font-size: 14px;">9 niveles: H1, H2, H3, H4, H5, Body, Body Small, Caption, Button</p>
+                </div>
+
+                <div style="background: white; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6;">
+                    <h4 style="color: #1e40af; margin-bottom: 10px; font-weight: 600;">Herramientas esenciales</h4>
+                    <p style="color: #1e40af; font-size: 14px;">Google Fonts (buscar), FontPair (combinar), Type Scale (escalar)</p>
+                </div>
+
+                <div style="background: white; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6;">
+                    <h4 style="color: #1e40af; margin-bottom: 10px; font-weight: 600;">Regla más importante</h4>
+                    <p style="color: #1e40af; font-size: 14px;">La jerarquía debe ser OBVIA. Si dudas si se nota la diferencia, hazla más grande.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="text-align: center; padding: 40px 20px; color: #6b7280;">
+        <p style="font-size: 14px;">Material educativo para aprender diseño de sistemas tipográficos</p>
+        <p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">Las fuentes mostradas: Inter, Poppins, Playfair Display (todas de Google Fonts)</p>
+    </div>
+
+</body></html>

@@ -1,0 +1,87 @@
+# ==========================================
+# 1. Archivos descargados en bruto / Fuentes sin procesar
+# ==========================================
+# Carpeta de material en bruto y descargas de chats/exportaciones
+Tema 1/
+raw/
+descargas/
+downloads/
+
+# Carpetas de recursos asociadas a páginas web descargadas
+*_files/
+*_files
+
+# Archivos y descargas temporales
+*.tmp
+*.temp
+*.crdownload
+*.part
+
+# Documentos temporales de MS Office y LibreOffice
+~$*.docx
+~$*.xlsx
+~$*.pptx
+.~lock.*#
+
+# ==========================================
+# 2. Archivos del Sistema Operativo
+# ==========================================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+
+# Linux
+*~
+
+# ==========================================
+# 3. Entornos de Desarrollo e IDEs
+# ==========================================
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains (IntelliJ, WebStorm, etc.)
+.idea/
+
+# Editores de texto comunes
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# ==========================================
+# 4. Dependencias y Builds Web (Node / Bundlers)
+# ==========================================
+node_modules/
+dist/
+build/
+.cache/
+.parcel-cache/
+.next/
+out/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================================
+# 5. Variables de entorno y credenciales
+# ==========================================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key

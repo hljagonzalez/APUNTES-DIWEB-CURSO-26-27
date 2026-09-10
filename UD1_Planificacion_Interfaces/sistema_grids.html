@@ -1,0 +1,1843 @@
+<!DOCTYPE html>
+<!-- saved from url=(0012)about:srcdoc -->
+<html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <script>
+      (function() {
+        // Capture host references before any artifact code runs: Window.parent
+        // is [Replaceable] (a top-level `var parent` in artifact code would
+        // replace the accessor with a data property), and a top-level
+        // `const crypto` would shadow the global — either would otherwise
+        // silently break the bridge for artifacts that worked before.
+        const realParent = window.parent;
+        const cryptoObj = window.crypto;
+        // html-to-image is only used by takeScreenshot: fetched on first use, not as a
+        // parser-blocking tag. Native fetch, captured before the proxy override below.
+        const realFetch = typeof window.fetch === 'function' ? window.fetch.bind(window) : null;
+        const HTML_TO_IMAGE_SRC = "https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.13/html-to-image.min.js";
+        const HTML_TO_IMAGE_INTEGRITY = "sha512-iZ2ORl595Wx6miw+GuadDet4WQbdSWS3JLMoNfY8cRGoEFy6oT3G9IbcrBeL6AfkgpA51ETt/faX6yLV+/gFJg==";
+        let htmlToImageLoad = null;
+        const loadHtmlToImage = () => {
+          if (!htmlToImageLoad) {
+            htmlToImageLoad = (realFetch
+              ? realFetch(HTML_TO_IMAGE_SRC, { integrity: HTML_TO_IMAGE_INTEGRITY, credentials: 'omit', referrerPolicy: 'no-referrer' })
+              : Promise.reject(new Error('fetch unavailable'))
+            )
+              .then((res) => {
+                if (!res.ok) throw new Error('html-to-image failed to load (' + res.status + ')');
+                return res.text();
+              })
+              .then((source) => {
+                // UMD bundle: hide the artifact's AMD/CommonJS globals so it takes the
+                // window-global branch; inline script text runs synchronously on insert.
+                const hidden = ['define', 'module', 'exports'].map((k) => {
+                  const entry = { k, own: Object.prototype.hasOwnProperty.call(window, k), v: window[k] };
+                  try { window[k] = undefined; } catch (e) {}
+                  return entry;
+                });
+                try {
+                  const el = document.createElement('script');
+                  el.text = source;
+                  (document.head || document.documentElement).appendChild(el);
+                } finally {
+                  hidden.forEach(({ k, own, v }) => {
+                    try { if (own) { window[k] = v; } else { delete window[k]; } } catch (e) {}
+                  });
+                }
+                if (!window.htmlToImage) throw new Error('html-to-image unavailable after load');
+                return window.htmlToImage;
+              });
+            // A failed load may be transient; let the next screenshot retry.
+            htmlToImageLoad.catch(() => { htmlToImageLoad = null; });
+          }
+          return htmlToImageLoad;
+        };
+        // crypto.randomUUID exists only in Secure Contexts; fall back to a
+        // unique non-crypto id elsewhere (http://LAN-IP dev flows) —
+        // uniqueness is what the bridge needs, unpredictability is
+        // defense-in-depth on top of the source guards.
+        const newRequestId =
+          cryptoObj && typeof cryptoObj.randomUUID === "function"
+            ? function () { return cryptoObj.randomUUID(); }
+            : function () { return Date.now() + "-" + Math.random(); };
+        const originalConsole = window.console;
+        window.console = {
+          log: (...args) => {
+            originalConsole.log(...args);
+            realParent.postMessage({ type: 'console', message: args.join(' ') }, '*');
+          },
+          error: (...args) => {
+            originalConsole.error(...args);
+            realParent.postMessage({ type: 'console', message: 'Error: ' + args.join(' ') }, '*');
+          },
+          warn: (...args) => {
+            originalConsole.warn(...args);
+            realParent.postMessage({ type: 'console', message: 'Warning: ' + args.join(' ') }, '*');
+          }
+        };
+
+        // Bridge request ids are crypto-random (not sequential) so they
+        // cannot be predicted by other frames in the tab.
+        let callbacksMap = new Map();
+        let streamControllers = new Map();
+        
+        window.claude = {
+          complete: (prompt) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'claudeComplete', id, prompt }, '*');
+            });
+          }
+        };
+
+        window.storage = {
+          get: (key, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageGet', id, key, shared }, '*');
+            });
+          },
+          set: (key, value, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageSet', id, key, value, shared }, '*');
+            });
+          },
+          delete: (key, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageDelete', id, key, shared }, '*');
+            });
+          },
+          list: (prefix, shared = false) => {
+            return new Promise((resolve, reject) => {
+              const id = newRequestId();
+              callbacksMap.set(id, { resolve, reject });
+              realParent.postMessage({ type: 'storageList', id, prefix, shared }, '*');
+            });
+          }
+        };
+
+        let pendingBlobs = new Map();
+        URL.createObjectURL = (blob) => {
+          // Store the blob and create an ID and URL for it
+          const blobId = `blob-${Date.now()}-${Math.random()}`;
+          pendingBlobs.set(blobId, blob);
+          return `blob-request://${blobId}`;
+        };
+
+        URL.revokeObjectURL = (url) => {
+          // Remove the blob from our store
+          const blobId = url.replace("blob-request://", "");
+          pendingBlobs.delete(blobId);
+        };
+
+        const getBlobFromURL = (url) => {
+          const blobId = url.replace("blob-request://", "");
+          return pendingBlobs.get(blobId);
+        };
+
+        // Override global fetch with streaming support
+        window.fetch = (url, init = {}) => {
+          return new Promise((resolve, reject) => {
+            const id = newRequestId();
+            const channelId = `fetch-${id}-${Date.now()}`;
+            
+            callbacksMap.set(id, { 
+              resolve: (response) => {
+                // Null-body statuses: Response(stream, {status: 204}) throws
+                // per the Fetch spec, which would escape this resolver and
+                // hang the artifact's await forever.
+                if (response.status === 204 || response.status === 205 || response.status === 304) {
+                  try {
+                    resolve(new Response(null, {
+                      status: response.status,
+                      statusText: response.statusText,
+                      headers: response.headers
+                    }));
+                  } catch (err) {
+                    // Invalid statusText/header bytes can throw here too.
+                    reject(new TypeError(
+                      'Bridge fetch: unconstructable response (status ' + response.status + ')'
+                    ));
+                  }
+                  return;
+                }
+                // Create a ReadableStream for the response body
+                const stream = new ReadableStream({
+                  start(controller) {
+                    streamControllers.set(channelId, controller);
+                  },
+                  cancel() {
+                    streamControllers.delete(channelId);
+                  }
+                });
+                
+                // Create and return the Response with the stream. Response()
+                // requires status in [200, 599]; an opaque/no-cors fetch
+                // forwards status 0, which would throw here and escape the
+                // resolver, hanging the artifact's await. Surface it as a
+                // network-error-shaped rejection instead.
+                try {
+                  resolve(new Response(stream, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers
+                  }));
+                } catch (err) {
+                  streamControllers.delete(channelId);
+                  reject(new TypeError(
+                    'Bridge fetch: unconstructable response (status ' + response.status + ')'
+                  ));
+                }
+              },
+              reject,
+              channelId
+            });
+            
+            realParent.postMessage({
+              type: 'proxyFetch',
+              id,
+              url,
+              init,
+              channelId
+            }, '*');
+          });
+        };
+
+        window.addEventListener('message', async (event) => {
+          // Only the embedding parent may drive the bridge — sibling and
+          // nested frames can also postMessage into this window.
+          if (event.source !== realParent) return;
+          if (event.data.type === 'takeScreenshot') {
+            // Echo the request's nonce so the requester can correlate the
+            // reply to ITS request — a reply without the expected nonce
+            // (e.g. from a stale pre-remount artifact) is ignored upstream.
+            const screenshotNonce = event.data.nonce;
+            const rootElement = document.getElementById('artifacts-component-root-html');
+            if (!rootElement) {
+              realParent.postMessage({
+                type: 'screenshotError',
+                nonce: screenshotNonce,
+                error: new Error('Root element not found'),
+              }, '*');
+              return;
+            }
+            // Catch CDN load failures and toPng errors so the parent always
+            // gets a response instead of hanging forever.
+            try {
+              const htmlToImage = await loadHtmlToImage();
+              const screenshot = await htmlToImage.toPng(rootElement, {
+                imagePlaceholder:
+                  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAA1JREFUGFdjePDgwX8ACOQDoNsk0PMAAAAASUVORK5CYII=",
+              });
+              realParent.postMessage({
+                type: 'screenshotData',
+                nonce: screenshotNonce,
+                data: screenshot,
+              }, '*');
+            } catch (err) {
+              realParent.postMessage({
+                type: 'screenshotError',
+                nonce: screenshotNonce,
+                error: err instanceof Error ? err : new Error(String(err)),
+              }, '*');
+            }
+          } else if (event.data.type === 'claudeComplete') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.completion);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'proxyFetchResponse') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+              callbacksMap.delete(event.data.id);
+            } else {
+              // Initial response with headers, status, etc.
+              callback.resolve({
+                status: event.data.status,
+                statusText: event.data.statusText,
+                headers: event.data.headers
+              });
+              // Don't delete the callback yet if streaming
+              if (!event.data.body) {
+                callbacksMap.delete(event.data.id);
+              }
+            }
+          } else if (event.data.type === 'proxyFetchStream') {
+            // Handle streaming data chunks
+            const controller = streamControllers.get(event.data.channelId);
+            if (controller) {
+              if (event.data.error) {
+                controller.error(new Error(event.data.error));
+                streamControllers.delete(event.data.channelId);
+              } else if (event.data.done) {
+                controller.close();
+                streamControllers.delete(event.data.channelId);
+                // Clean up the callback
+                const callback = Array.from(callbacksMap.entries()).find(
+                  ([_, value]) => value.channelId === event.data.channelId
+                );
+                if (callback) {
+                  callbacksMap.delete(callback[0]);
+                }
+              } else if (event.data.chunk) {
+                controller.enqueue(new Uint8Array(event.data.chunk));
+              }
+            }
+          } else if (event.data.type === 'storageGet') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageSet') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageDelete') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          } else if (event.data.type === 'storageList') {
+            const callback = callbacksMap.get(event.data.id);
+            if (!callback) return;
+            if (event.data.error) {
+              callback.reject(new Error(event.data.error));
+            } else {
+              callback.resolve(event.data.result);
+            }
+            callbacksMap.delete(event.data.id);
+          }
+        });
+
+        window.addEventListener('click', (event) => {
+          const isEl = event.target instanceof HTMLElement;
+          if (!isEl) return;
+    
+          // find ancestor links
+          const linkEl = event.target.closest("a");
+          if (!linkEl || !linkEl.href) return;
+    
+          event.preventDefault();
+          event.stopImmediatePropagation();
+    
+          if (linkEl.href.startsWith("blob-request:")) {
+            const blob = getBlobFromURL(linkEl.href);
+            if (!blob) return;
+            void blob.arrayBuffer().then((data) => {
+              realParent.postMessage({
+                type: "downloadFile",
+                filename: linkEl.download,
+                data,
+                mimeType: blob.type || "application/octet-stream",
+              });
+            });
+          } else if (linkEl.href.startsWith("data:")) {
+            const [header, base64Data] = linkEl.href.split(",");
+            const mimeMatch = header.match(/data:([^;]+)/);
+            const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+            const binaryString = atob(base64Data);
+            const data = Uint8Array.from(binaryString, (c) =>
+              c.charCodeAt(0),
+            ).buffer;
+            realParent.postMessage({
+              type: "downloadFile",
+              filename: linkEl.download,
+              data,
+              mimeType,
+            });
+          } else {
+            let linkUrl;
+            try {
+              linkUrl = new URL(linkEl.href);
+            } catch (error) {
+              return;
+            }
+    
+            if (linkUrl.hostname === window.location.hostname) return;
+      
+            realParent.postMessage({
+              type: 'openExternal',
+              href: linkEl.href,
+            }, '*');
+          }
+      });
+
+        const originalOpen = window.open;
+        window.open = function (url) {
+          realParent.postMessage({
+            type: "openExternal",
+            href: url,
+          }, "*");
+        };
+
+        window.addEventListener('error', (event) => {
+          realParent.postMessage({ type: 'console', message: 'Uncaught Error: ' + event.message }, '*');
+        });
+      })();
+    </script>
+  
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Grids</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            background: #f8fafc;
+            color: #1f2937;
+        }
+        
+        .main-header {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+        }
+        
+        .main-header h1 {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 15px;
+        }
+        
+        .main-header p {
+            font-size: 18px;
+            opacity: 0.95;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .section {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            margin: 30px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .section-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .section-subtitle {
+            color: #6b7280;
+            font-size: 16px;
+            margin-bottom: 30px;
+        }
+        
+        /* INTRO BOXES */
+        .intro-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .intro-box {
+            padding: 25px;
+            border-radius: 12px;
+            border: 2px solid;
+        }
+        
+        .intro-box-blue {
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border-color: #93c5fd;
+        }
+        
+        .intro-box-green {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border-color: #86efac;
+        }
+        
+        .intro-box-yellow {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-color: #fcd34d;
+        }
+        
+        .intro-box-pink {
+            background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
+            border-color: #f9a8d4;
+        }
+        
+        .intro-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+        
+        .intro-title {
+            font-size: 18px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .intro-box-blue .intro-title {
+            color: #1e40af;
+        }
+        
+        .intro-box-green .intro-title {
+            color: #15803d;
+        }
+        
+        .intro-box-yellow .intro-title {
+            color: #92400e;
+        }
+        
+        .intro-box-pink .intro-title {
+            color: #9f1239;
+        }
+        
+        .intro-text {
+            font-size: 14px;
+        }
+        
+        .intro-box-blue .intro-text {
+            color: #1e3a8a;
+        }
+        
+        .intro-box-green .intro-text {
+            color: #14532d;
+        }
+        
+        .intro-box-yellow .intro-text {
+            color: #78350f;
+        }
+        
+        .intro-box-pink .intro-text {
+            color: #831843;
+        }
+        
+        /* COMPARISON GRID */
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 30px 0;
+        }
+        
+        .comparison-item {
+            border-radius: 12px;
+            padding: 30px;
+            border: 2px solid;
+        }
+        
+        .bad-example {
+            background: #fef2f2;
+            border-color: #fca5a5;
+        }
+        
+        .good-example {
+            background: #f0fdf4;
+            border-color: #86efac;
+        }
+        
+        .example-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .bad-example .example-title {
+            color: #dc2626;
+        }
+        
+        .good-example .example-title {
+            color: #16a34a;
+        }
+        
+        .example-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .spacing-demo {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .spacing-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            font-family: 'Monaco', monospace;
+        }
+        
+        .spacing-value {
+            font-weight: 700;
+            min-width: 80px;
+        }
+        
+        .bad-example .spacing-value {
+            color: #dc2626;
+        }
+        
+        .good-example .spacing-value {
+            color: #16a34a;
+        }
+        
+        /* ESCALA 8PT */
+        .scale-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .scale-item {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border-radius: 12px;
+            border: 2px solid #93c5fd;
+        }
+        
+        .scale-box {
+            background: #3b82f6;
+            margin: 0 auto 15px;
+            border-radius: 6px;
+        }
+        
+        .scale-label {
+            font-weight: 700;
+            color: #1e40af;
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        
+        .scale-calc {
+            font-size: 12px;
+            color: #3b82f6;
+            font-family: 'Monaco', monospace;
+        }
+        
+        /* GRID DEMO */
+        .grid-demo {
+            background: #f9fafb;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .grid-container {
+            display: grid;
+            gap: 24px;
+            position: relative;
+        }
+        
+        .grid-12 {
+            grid-template-columns: repeat(12, 1fr);
+        }
+        
+        .grid-8 {
+            grid-template-columns: repeat(8, 1fr);
+        }
+        
+        .grid-4 {
+            grid-template-columns: repeat(4, 1fr);
+        }
+        
+        .grid-column {
+            background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+            height: 60px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: #4338ca;
+            border: 1px solid #a5b4fc;
+        }
+        
+        .grid-label {
+            text-align: center;
+            margin-bottom: 15px;
+            font-weight: 600;
+            color: #4338ca;
+            font-size: 16px;
+        }
+        
+        .grid-specs {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 2px solid #e0e7ff;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .grid-spec-item {
+            text-align: center;
+        }
+        
+        .grid-spec-label {
+            font-size: 11px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+        
+        .grid-spec-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: #4338ca;
+        }
+        
+        /* LAYOUT EXAMPLE */
+        .layout-example {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 30px 0;
+        }
+        
+        .layout-header {
+            background: #1f2937;
+            color: white;
+            padding: 24px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .layout-logo {
+            font-size: 20px;
+            font-weight: 800;
+        }
+        
+        .layout-nav {
+            display: flex;
+            gap: 32px;
+        }
+        
+        .layout-nav a {
+            color: #d1d5db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .layout-content {
+            padding: 48px 40px;
+        }
+        
+        .layout-grid-demo {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .layout-main {
+            grid-column: span 8;
+            background: #f9fafb;
+            padding: 32px;
+            border-radius: 12px;
+        }
+        
+        .layout-sidebar {
+            grid-column: span 4;
+            background: #f9fafb;
+            padding: 32px;
+            border-radius: 12px;
+        }
+        
+        .layout-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 16px;
+        }
+        
+        .layout-text {
+            color: #6b7280;
+            margin-bottom: 16px;
+            line-height: 1.6;
+        }
+        
+        .layout-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+        
+        .layout-card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 8px;
+        }
+        
+        .card-text {
+            font-size: 14px;
+            color: #6b7280;
+        }
+        
+        /* FIGMA CONFIG */
+        .figma-config {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border: 2px solid #86efac;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+        }
+        
+        .figma-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #15803d;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .figma-steps {
+            display: grid;
+            gap: 15px;
+        }
+        
+        .figma-step {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #22c55e;
+        }
+        
+        .step-number {
+            display: inline-block;
+            background: #22c55e;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+            font-weight: 700;
+            margin-right: 12px;
+        }
+        
+        .step-text {
+            color: #166534;
+            font-weight: 500;
+        }
+        
+        .step-details {
+            margin-top: 10px;
+            padding-left: 40px;
+            color: #15803d;
+            font-size: 14px;
+            font-family: 'Monaco', monospace;
+        }
+        
+        /* TIP BOXES */
+        .tip-box {
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 12px;
+            border-left: 5px solid;
+        }
+        
+        .tip-warning {
+            background: #fef3c7;
+            border-color: #f59e0b;
+        }
+        
+        .tip-success {
+            background: #d1fae5;
+            border-color: #10b981;
+        }
+        
+        .tip-info {
+            background: #dbeafe;
+            border-color: #3b82f6;
+        }
+        
+        .tip-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .tip-warning .tip-title {
+            color: #92400e;
+        }
+        
+        .tip-success .tip-title {
+            color: #065f46;
+        }
+        
+        .tip-info .tip-title {
+            color: #1e40af;
+        }
+        
+        .tip-text {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .tip-warning .tip-text {
+            color: #78350f;
+        }
+        
+        .tip-success .tip-text {
+            color: #064e3b;
+        }
+        
+        .tip-info .tip-text {
+            color: #1e3a8a;
+        }
+        
+        /* CHECKLIST */
+        .checklist {
+            background: #f9fafb;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+        }
+        
+        .checklist-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 20px;
+        }
+        
+        .checklist-item {
+            display: flex;
+            align-items: start;
+            gap: 12px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .check-icon {
+            background: #22c55e;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        
+        .checklist-text {
+            color: #374151;
+            line-height: 1.5;
+        }
+        
+        @media (max-width: 968px) {
+            .comparison-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .layout-grid-demo {
+                grid-template-columns: 1fr;
+            }
+            
+            .layout-main,
+            .layout-sidebar {
+                grid-column: span 1;
+            }
+            
+            .layout-cards {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .main-header h1 {
+                font-size: 32px;
+            }
+            
+            .section {
+                padding: 25px 20px;
+            }
+            
+            .layout-header {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .layout-nav {
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+<body id="artifacts-component-root-html">
+    <div class="main-header">
+        <h1>📐 Sistema de Grids</h1>
+        <p>La base de la consistencia y profesionalismo en diseño</p>
+    </div>
+
+    <div class="container">
+        <!-- INTRODUCCIÓN -->
+        <div class="section">
+            <h2 class="section-title">
+                <span style="font-size: 36px;">🎯</span>
+                ¿Por qué necesitas un sistema de grids?
+            </h2>
+            
+            <div class="intro-grid">
+                <div class="intro-box intro-box-blue">
+                    <div class="intro-icon">⚡</div>
+                    <h3 class="intro-title">Velocidad</h3>
+                    <p class="intro-text">No pierdes tiempo decidiendo espaciados. Todo encaja automáticamente.</p>
+                </div>
+                
+                <div class="intro-box intro-box-green">
+                    <div class="intro-icon">✨</div>
+                    <h3 class="intro-title">Consistencia</h3>
+                    <p class="intro-text">Todo alineado perfectamente. Se ve profesional sin esfuerzo.</p>
+                </div>
+                
+                <div class="intro-box intro-box-yellow">
+                    <div class="intro-icon">🤝</div>
+                    <h3 class="intro-title">Colaboración</h3>
+                    <p class="intro-text">Developers usan el mismo sistema. Implementación perfecta.</p>
+                </div>
+                
+                <div class="intro-box intro-box-pink">
+                    <div class="intro-icon">📱</div>
+                    <h3 class="intro-title">Responsive</h3>
+                    <p class="intro-text">El contenido se adapta fácilmente a cualquier dispositivo.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- PARTE 1: 8PT GRID SYSTEM -->
+        <div class="section">
+            <h2 class="section-title">
+                <span style="font-size: 36px;">1️⃣</span>
+                8pt Grid System (Espaciado)
+            </h2>
+            <p class="section-subtitle">TODO el espaciado y tamaños deben ser múltiplos de 8px: padding, margin, gaps, alturas, anchos...</p>
+
+            <div style="background: #eff6ff; border: 3px solid #3b82f6; border-radius: 12px; padding: 24px; margin-bottom: 30px;">
+                <div style="font-size: 18px; font-weight: 700; color: #1e40af; margin-bottom: 12px;">🎯 ¿Para qué sirve el 8pt Grid?</div>
+                <div style="font-size: 15px; color: #1e3a8a; line-height: 1.7;">
+                    El 8pt Grid se usa para <strong>TODOS los espaciados y tamaños</strong> en tu diseño:<br>
+                    • Espacio entre elementos (margins)<br>
+                    • Espacio interno de componentes (padding)<br>
+                    • Separación entre items (gaps)<br>
+                    • Altura de botones, cards, headers<br>
+                    • Cualquier medida que uses<br><br>
+                    <strong>Regla simple: Si mides algo, debe ser múltiplo de 8.</strong>
+                </div>
+            </div>
+
+            <div class="comparison-grid">
+                <div class="comparison-item bad-example">
+                    <div class="example-title">
+                        <span style="font-size: 32px;">❌</span>
+                        <span>SIN sistema (caótico)</span>
+                    </div>
+                    <div class="example-card">
+                        <h3 style="font-size: 18px; margin-bottom: 10px;">Título de Card</h3>
+                        <p style="font-size: 14px; color: #6b7280;">Descripción del contenido aquí</p>
+                    </div>
+                    <div class="spacing-demo">
+                        <div class="spacing-item">
+                            <span class="spacing-value">Padding: 17px</span>
+                            <span style="color: #6b7280;">← Número aleatorio</span>
+                        </div>
+                        <div class="spacing-item">
+                            <span class="spacing-value">Margin: 13px</span>
+                            <span style="color: #6b7280;">← Número aleatorio</span>
+                        </div>
+                        <div class="spacing-item">
+                            <span class="spacing-value">Gap: 19px</span>
+                            <span style="color: #6b7280;">← Número aleatorio</span>
+                        </div>
+                        <div class="spacing-item">
+                            <span class="spacing-value">Height: 127px</span>
+                            <span style="color: #6b7280;">← No alinea con nada</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="comparison-item good-example">
+                    <div class="example-title">
+                        <span style="font-size: 32px;">✅</span>
+                        <span>CON 8pt grid (profesional)</span>
+                    </div>
+                    <div class="example-card">
+                        <h3 style="font-size: 18px; margin-bottom: 10px;">Título de Card</h3>
+                        <p style="font-size: 14px; color: #6b7280;">Descripción del contenido aquí</p>
+                    </div>
+                    <div class="spacing-demo">
+                        <div class="spacing-item">
+                            <span class="spacing-value">Padding: 24px</span>
+                            <span style="color: #6b7280;">← 3 × 8</span>
+                        </div>
+                        <div class="spacing-item">
+                            <span class="spacing-value">Margin: 16px</span>
+                            <span style="color: #6b7280;">← 2 × 8</span>
+                        </div>
+                        <div class="spacing-item">
+                            <span class="spacing-value">Gap: 32px</span>
+                            <span style="color: #6b7280;">← 4 × 8</span>
+                        </div>
+                        <div class="spacing-item">
+                            <span class="spacing-value">Height: 128px</span>
+                            <span style="color: #6b7280;">← 16 × 8</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tip-box tip-warning">
+                <div class="tip-title">⚠️ Regla de oro</div>
+                <div class="tip-text">
+                    <strong>NUNCA uses números como 15px, 19px, 23px, 27px...</strong><br>
+                    SIEMPRE usa múltiplos de 8: 8px, 16px, 24px, 32px, 40px, 48px...
+                </div>
+            </div>
+
+            <h3 style="font-size: 24px; font-weight: 700; margin: 40px 0 20px; color: #1f2937;">La Escala Completa de Espaciado</h3>
+            <p style="color: #6b7280; margin-bottom: 25px;">Solo usarás estos valores para TODOS tus espacios. Nada de números aleatorios.</p>
+            
+            <div class="scale-grid">
+                <div class="scale-item">
+                    <div class="scale-box" style="width: 8px; height: 8px;"></div>
+                    <div class="scale-label">8px</div>
+                    <div class="scale-calc">1 × 8</div>
+                </div>
+                
+                <div class="scale-item">
+                    <div class="scale-box" style="width: 16px; height: 16px;"></div>
+                    <div class="scale-label">16px</div>
+                    <div class="scale-calc">2 × 8</div>
+                </div>
+                
+                <div class="scale-item">
+                    <div class="scale-box" style="width: 24px; height: 24px;"></div>
+                    <div class="scale-label">24px</div>
+                    <div class="scale-calc">3 × 8</div>
+                </div>
+                
+                <div class="scale-item">
+                    <div class="scale-box" style="width: 32px; height: 32px;"></div>
+                    <div class="scale-label">32px</div>
+                    <div class="scale-calc">4 × 8</div>
+                </div>
+                
+                <div class="scale-item">
+                    <div class="scale-box" style="width: 40px; height: 40px;"></div>
+                    <div class="scale-label">40px</div>
+                    <div class="scale-calc">5 × 8</div>
+                </div>
+                
+                <div class="scale-item">
+                    <div class="scale-box" style="width: 48px; height: 48px;"></div>
+                    <div class="scale-label">48px</div>
+                    <div class="scale-calc">6 × 8</div>
+                </div>
+                
+                <div class="scale-item">
+                    <div class="scale-box" style="width: 56px; height: 56px;"></div>
+                    <div class="scale-label">56px</div>
+                    <div class="scale-calc">7 × 8</div>
+                </div>
+                
+                <div class="scale-item">
+                    <div class="scale-box" style="width: 64px; height: 64px;"></div>
+                    <div class="scale-label">64px</div>
+                    <div class="scale-calc">8 × 8</div>
+                </div>
+            </div>
+
+            <h3 style="font-size: 24px; font-weight: 700; margin: 40px 0 20px; color: #1f2937;">Cuándo Usar Cada Tamaño - Ejemplos Prácticos</h3>
+
+            <div style="display: grid; gap: 20px; margin: 30px 0;">
+                <!-- EJEMPLO 8PX -->
+                <div style="background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
+                        <div style="background: #3b82f6; color: white; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px;">8</div>
+                        <div>
+                            <div style="font-weight: 700; color: #1f2937; font-size: 16px;">8px - Espacios MUY pequeños</div>
+                            <div style="font-size: 13px; color: #6b7280;">Entre elementos extremadamente relacionados</div>
+                        </div>
+                    </div>
+                    <div style="background: white; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb;">
+                        <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #374151;">
+                            <span style="font-size: 18px;">✉️</span>
+                            <span>contacto@empresa.com</span>
+                            <div style="background: #fef3c7; padding: 2px 8px; margin-left: 8px; border-radius: 4px; font-size: 12px; color: #92400e;">← 8px de gap</div>
+                        </div>
+                        <div style="margin-top: 12px; font-size: 13px; color: #6b7280;">
+                            ✓ Entre ícono y texto<br>
+                            ✓ Entre badge y su texto<br>
+                            ✓ Entre elementos en un grupo muy unido
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EJEMPLO 16PX -->
+                <div style="background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
+                        <div style="background: #3b82f6; color: white; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px;">16</div>
+                        <div>
+                            <div style="font-weight: 700; color: #1f2937; font-size: 16px;">16px - Espacios pequeños estándar</div>
+                            <div style="font-size: 13px; color: #6b7280;">Dentro de componentes, entre párrafos</div>
+                        </div>
+                    </div>
+                    <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb;">
+                        <div style="font-weight: 600; color: #111827; margin-bottom: 16px;">Título del artículo</div>
+                        <div style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 16px;">Primer párrafo del contenido con información relevante.</div>
+                        <div style="font-size: 14px; color: #6b7280; line-height: 1.6;">Segundo párrafo continuando la explicación.</div>
+                        <div style="margin-top: 12px; font-size: 13px; color: #6b7280;">
+                            ✓ Entre párrafos de texto<br>
+                            ✓ Entre título y contenido en componentes pequeños<br>
+                            ✓ Padding interno de botones
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EJEMPLO 24PX -->
+                <div style="background: #f9fafb; border: 2px solid #10b981; border-radius: 12px; padding: 25px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
+                        <div style="background: #10b981; color: white; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px;">24</div>
+                        <div>
+                            <div style="font-weight: 700; color: #1f2937; font-size: 16px;">24px - Espacios medianos ⭐ EL MÁS COMÚN</div>
+                            <div style="font-size: 13px; color: #6b7280;">Padding de cards, separación estándar</div>
+                        </div>
+                    </div>
+                    <div style="background: white; padding: 24px; border-radius: 8px; border: 1px solid #e5e7eb;">
+                        <div style="font-weight: 600; color: #111827; font-size: 18px; margin-bottom: 8px;">Producto destacado</div>
+                        <div style="font-size: 14px; color: #6b7280; margin-bottom: 16px;">Descripción del producto aquí</div>
+                        <div style="font-weight: 700; color: #10b981; font-size: 20px;">$299</div>
+                        <div style="margin-top: 12px; font-size: 13px; color: #6b7280; padding: 12px; background: #f0fdf4; border-radius: 6px;">
+                            ✓ <strong>Padding de cards</strong> (lo más común)<br>
+                            ✓ Entre secciones dentro de un componente<br>
+                            ✓ Gap entre elementos moderadamente separados<br>
+                            ✓ Si tienes dudas, usa 24px
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EJEMPLO 32PX -->
+                <div style="background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
+                        <div style="background: #3b82f6; color: white; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px;">32</div>
+                        <div>
+                            <div style="font-weight: 700; color: #1f2937; font-size: 16px;">32px - Espacios grandes</div>
+                            <div style="font-size: 13px; color: #6b7280;">Entre cards, entre grupos de contenido</div>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px;">
+                        <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb;">
+                            <div style="font-weight: 600; color: #111827;">Card 1</div>
+                        </div>
+                        <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb;">
+                            <div style="font-weight: 600; color: #111827;">Card 2</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px; font-size: 13px; color: #6b7280; background: white; padding: 12px; border-radius: 6px;">
+                        ✓ Gap entre cards en una grid<br>
+                        ✓ Entre grupos de contenido diferentes<br>
+                        ✓ Espacios grandes entre elementos
+                    </div>
+                </div>
+
+                <!-- EJEMPLO 48-64PX -->
+                <div style="background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
+                        <div style="background: #3b82f6; color: white; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;">48+</div>
+                        <div>
+                            <div style="font-weight: 700; color: #1f2937; font-size: 16px;">48-64px - Espacios MUY grandes</div>
+                            <div style="font-size: 13px; color: #6b7280;">Entre secciones principales de la página</div>
+                        </div>
+                    </div>
+                    <div style="background: white; padding: 48px 24px; border-radius: 8px; border: 1px solid #e5e7eb; text-align: center;">
+                        <div style="font-weight: 700; color: #111827; font-size: 20px; margin-bottom: 8px;">Sección 1: Hero</div>
+                        <div style="font-size: 14px; color: #6b7280;">Contenido principal</div>
+                    </div>
+                    <div style="height: 48px; display: flex; align-items: center; justify-content: center; color: #6b7280; font-size: 13px; font-weight: 600;">
+                        ↕ 48-64px de separación
+                    </div>
+                    <div style="background: white; padding: 48px 24px; border-radius: 8px; border: 1px solid #e5e7eb; text-align: center;">
+                        <div style="font-weight: 700; color: #111827; font-size: 20px; margin-bottom: 8px;">Sección 2: Servicios</div>
+                        <div style="font-size: 14px; color: #6b7280;">Otro contenido</div>
+                    </div>
+                    <div style="margin-top: 12px; font-size: 13px; color: #6b7280; background: white; padding: 12px; border-radius: 6px;">
+                        ✓ Padding vertical de secciones grandes (hero, footer)<br>
+                        ✓ Separación entre secciones principales de la página<br>
+                        ✓ Márgenes muy grandes
+                    </div>
+                </div>
+            </div>
+
+            <div class="tip-box tip-success">
+                <div class="tip-title">🎯 Regla práctica simple</div>
+                <div class="tip-text">
+                    <strong>¿Están muy relacionados?</strong> → 8px (ícono + texto)<br>
+                    <strong>¿Están relacionados?</strong> → 16px (párrafos, elementos de un grupo)<br>
+                    <strong>¿Están separados pero en el mismo componente?</strong> → 24px (padding de cards) ⭐<br>
+                    <strong>¿Son componentes diferentes?</strong> → 32px (entre cards)<br>
+                    <strong>¿Son secciones diferentes?</strong> → 48-64px (entre secciones de página)
+                </div>
+            </div>
+        </div>
+
+        <!-- PARTE 2: LAYOUT GRID (COLUMNAS) -->
+        <div class="section">
+            <h2 class="section-title">
+                <span style="font-size: 36px;">2️⃣</span>
+                Layout Grid (Organización del Ancho)
+            </h2>
+            <p class="section-subtitle">Para decidir cuánto ANCHO ocupan los contenedores principales en tu página. Desktop 12 columnas, Tablet 8, Mobile 4.</p>
+
+            <div style="background: #fef3c7; border: 3px solid #f59e0b; border-radius: 12px; padding: 24px; margin-bottom: 30px;">
+                <div style="font-size: 18px; font-weight: 700; color: #92400e; margin-bottom: 12px;">🎯 ¿Para qué sirve el Layout Grid?</div>
+                <div style="font-size: 15px; color: #78350f; line-height: 1.7;">
+                    El Layout Grid (columnas) se usa SOLO para <strong>decidir el ANCHO de contenedores</strong>:<br>
+                    • ¿Cuántas cards caben por fila? (3 cards = 4 columnas cada una)<br>
+                    • ¿Cuánto ancho ocupa el sidebar? (4 de 12 columnas)<br>
+                    • ¿El contenido principal? (8 de 12 columnas)<br><br>
+                    <strong>NO se usa para espaciados internos, botones, textos o elementos pequeños.</strong><br>
+                    Para eso está el 8pt Grid.
+                </div>
+            </div>
+
+            <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 20px; color: #1f2937;">Desktop - 12 Columnas</h3>
+            <div class="grid-demo">
+                <div class="grid-label">12 columnas (estándar universal para desktop)</div>
+                <div class="grid-container grid-12">
+                    <div class="grid-column">1</div>
+                    <div class="grid-column">2</div>
+                    <div class="grid-column">3</div>
+                    <div class="grid-column">4</div>
+                    <div class="grid-column">5</div>
+                    <div class="grid-column">6</div>
+                    <div class="grid-column">7</div>
+                    <div class="grid-column">8</div>
+                    <div class="grid-column">9</div>
+                    <div class="grid-column">10</div>
+                    <div class="grid-column">11</div>
+                    <div class="grid-column">12</div>
+                </div>
+                <div class="grid-specs">
+                    <div class="grid-spec-item">
+                        <div class="grid-spec-label">Columnas</div>
+                        <div class="grid-spec-value">12</div>
+                    </div>
+                    <div class="grid-spec-item">
+                        <div class="grid-spec-label">Type</div>
+                        <div class="grid-spec-value">Stretch</div>
+                    </div>
+                    <div class="grid-spec-item">
+                        <div class="grid-spec-label">Gutter</div>
+                        <div class="grid-spec-value">24px</div>
+                    </div>
+                    <div class="grid-spec-item">
+                        <div class="grid-spec-label">Margin</div>
+                        <div class="grid-spec-value">80px</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="font-size: 20px; font-weight: 700; margin: 40px 0 20px; color: #1f2937;">Tablet - 8 Columnas</h3>
+            <div class="grid-demo">
+                <div class="grid-label">8 columnas (para tablets y pantallas medianas)</div>
+                <div class="grid-container grid-8">
+                    <div class="grid-column">1</div>
+                    <div class="grid-column">2</div>
+                    <div class="grid-column">3</div>
+                    <div class="grid-column">4</div>
+                    <div class="grid-column">5</div>
+                    <div class="grid-column">6</div>
+                    <div class="grid-column">7</div>
+                    <div class="grid-column">8</div>
+                </div>
+                <div class="grid-specs">
+                    <div class="grid-spec-item">
+                        <div class="grid-spec-label">Columnas</div>
+                        <div class="grid-spec-value">8</div>
+                    </div>
+                    <div class="grid-spec-item">
+                        <div class="grid-spec-label">Type</div>
+                        <div class="grid-spec-value">Stretch</div>
+                    </div>
+                    <div class="grid-spec-item">
+                        <div class="grid-spec-label">Gutter</div>
+                        <div class="grid-spec-value">24px</div>
+                    </div>
+                    <div class="grid-spec-item">
+                        <div class="grid-spec-label">Margin</div>
+                        <div class="grid-spec-value">40px</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="font-size: 20px; font-weight: 700; margin: 40px 0 20px; color: #1f2937;">Mobile - 4 Columnas</h3>
+            <div class="grid-demo">
+                <div class="grid-label">4 columnas (para móviles)</div>
+                <div class="grid-container grid-4">
+                    <div class="grid-column">1</div>
+                    <div class="grid-column">2</div>
+                    <div class="grid-column">3</div>
+                    <div class="grid-column">4</div>
+                </div>
+                <div class="grid-specs">
+                    <div class="grid-spec-item">
+                        <div class="grid-spec-label">Columnas</div>
+                        <div class="grid-spec-value">4</div>
+                    </div>
+                    <div class="grid-spec-item">
+                        <div class="grid-spec-label">Type</div>
+                        <div class="grid-spec-value">Stretch</div>
+                    </div>
+                    <div class="grid-spec-item">
+                        <div class="grid-spec-label">Gutter</div>
+                        <div class="grid-spec-value">16px</div>
+                    </div>
+                    <div class="grid-spec-item">
+                        <div class="grid-spec-label">Margin</div>
+                        <div class="grid-spec-value">16px</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tip-box tip-info">
+                <div class="tip-title">📱 Ventaja de usar Stretch</div>
+                <div class="tip-text">
+                    Al configurar el tipo como "Stretch", las columnas se adaptan automáticamente al ancho del frame. No necesitas calcular el ancho de cada columna - Figma lo hace por ti. Esto hace que el grid sea totalmente responsive y funcione en cualquier tamaño de pantalla.
+                </div>
+            </div>
+
+            <div class="tip-box tip-success">
+                <div class="tip-title">🎯 Cómo usar las columnas</div>
+                <div class="tip-text">
+                    Las columnas son una GUÍA, no límites rígidos. Tu contenido puede ocupar:<br><br>
+                    • <strong>Desktop (12 col):</strong> 3 cols (cuarto), 4 cols (tercio), 6 cols (mitad), 8 cols (dos tercios), 12 (completo)<br>
+                    • <strong>Tablet (8 col):</strong> 2 cols (cuarto), 4 cols (mitad), 8 cols (completo)<br>
+                    • <strong>Mobile (4 col):</strong> Generalmente 4 cols (ancho completo)
+                </div>
+            </div>
+        </div>
+
+        <!-- PARTE 3: EJEMPLO APLICADO -->
+        <div class="section">
+            <h2 class="section-title">
+                <span style="font-size: 36px;">3️⃣</span>
+                Sistema Aplicado - Ejemplo Real
+            </h2>
+            <p class="section-subtitle">Ve cómo el 8pt grid y las 12 columnas trabajan juntos en un diseño completo</p>
+
+            <div class="layout-example">
+                <div class="layout-header">
+                    <div class="layout-logo">DesignSystem</div>
+                    <nav class="layout-nav">
+                        <a href="https://www.claudeusercontent.com/artifact/7f07327b-b363-4261-8a0d-5a87e100a904?domain=claude.ai&amp;parentOrigin=https%3A%2F%2Fclaude.ai&amp;errorReportingMode=parent&amp;formattedSpreadsheets=true&amp;contentType=text%2Fhtml#">Inicio</a>
+                        <a href="https://www.claudeusercontent.com/artifact/7f07327b-b363-4261-8a0d-5a87e100a904?domain=claude.ai&amp;parentOrigin=https%3A%2F%2Fclaude.ai&amp;errorReportingMode=parent&amp;formattedSpreadsheets=true&amp;contentType=text%2Fhtml#">Productos</a>
+                        <a href="https://www.claudeusercontent.com/artifact/7f07327b-b363-4261-8a0d-5a87e100a904?domain=claude.ai&amp;parentOrigin=https%3A%2F%2Fclaude.ai&amp;errorReportingMode=parent&amp;formattedSpreadsheets=true&amp;contentType=text%2Fhtml#">Contacto</a>
+                    </nav>
+                </div>
+
+                <div class="layout-content">
+                    <div class="layout-grid-demo">
+                        <div class="layout-main">
+                            <h2 class="layout-title">Contenido Principal</h2>
+                            <p class="layout-text">Esta sección ocupa 8 de las 12 columnas. El padding interno es 32px (4×8), los márgenes entre secciones son 48px (6×8).</p>
+                            <p class="layout-text">Todo está perfectamente alineado gracias al sistema de grids. No hay espaciados aleatorios.</p>
+                        </div>
+
+                        <div class="layout-sidebar">
+                            <h3 class="layout-title" style="font-size: 20px;">Sidebar</h3>
+                            <p class="layout-text">Esta sidebar ocupa 4 de las 12 columnas. El gap entre main y sidebar es 24px (3×8).</p>
+                        </div>
+                    </div>
+
+                    <div class="layout-cards">
+                        <div class="layout-card">
+                            <div class="card-title">Card 1</div>
+                            <p class="card-text">Padding interno: 24px (3×8). Cada card ocupa 4 columnas.</p>
+                        </div>
+
+                        <div class="layout-card">
+                            <div class="card-title">Card 2</div>
+                            <p class="card-text">Gap entre cards: 24px (3×8). Todo alineado al grid.</p>
+                        </div>
+
+                        <div class="layout-card">
+                            <div class="card-title">Card 3</div>
+                            <p class="card-text">Border radius: 12px (opcional, múltiplo de 4).</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 20px; margin-top: 30px; border-radius: 0 12px 12px 0;">
+                <h4 style="color: #15803d; margin-bottom: 12px; font-size: 16px; font-weight: 600;">✅ Observa los espaciados en este ejemplo</h4>
+                <ul style="color: #166534; font-size: 14px; line-height: 1.8; padding-left: 20px;">
+                    <li><strong>Header padding:</strong> 24px vertical, 40px horizontal (múltiplos de 8)</li>
+                    <li><strong>Logo-Nav gap:</strong> 32px (4×8)</li>
+                    <li><strong>Section padding:</strong> 48px vertical, 40px horizontal (6×8 y 5×8)</li>
+                    <li><strong>Main content:</strong> Ocupa 8 columnas (dos tercios del ancho)</li>
+                    <li><strong>Sidebar:</strong> Ocupa 4 columnas (un tercio del ancho)</li>
+                    <li><strong>Gap main-sidebar:</strong> 24px (3×8)</li>
+                    <li><strong>Card padding:</strong> 24px (3×8)</li>
+                    <li><strong>Cards gap:</strong> 24px entre ellas (3×8)</li>
+                    <li><strong>Cards grid:</strong> 3 cards de 4 columnas cada una = 12 columnas total</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- PARTE 4: CONFIGURACIÓN EN FIGMA -->
+        <div class="section">
+            <h2 class="section-title">
+                <span style="font-size: 36px;">🎨</span>
+                Cómo Configurar en Figma
+            </h2>
+            <p class="section-subtitle">Paso a paso para configurar tu sistema de grids en Figma</p>
+
+            <div class="figma-config">
+                <div class="figma-title">
+                    <span style="font-size: 28px;">📐</span>
+                    Configuración del Layout Grid
+                </div>
+
+                <div class="figma-steps">
+                    <div class="figma-step">
+                        <span class="step-number">1</span>
+                        <span class="step-text">Selecciona tu Frame principal (ej: Desktop 1440px)</span>
+                    </div>
+
+                    <div class="figma-step">
+                        <span class="step-number">2</span>
+                        <span class="step-text">En el panel derecho, busca "Layout Grid" y haz clic en "+"</span>
+                    </div>
+
+                    <div class="figma-step">
+                        <span class="step-number">3</span>
+                        <span class="step-text">Cambia el tipo de "Grid" a "Columns"</span>
+                    </div>
+
+                    <div class="figma-step">
+                        <span class="step-number">4</span>
+                        <span class="step-text">Configura los valores para Desktop:</span>
+                        <div class="step-details">
+                            • Count (Número de columnas): 12<br>
+                            • Type: Stretch (para que se adapten al frame)<br>
+                            • Gutter (Espacio entre columnas): 24<br>
+                            • Margin (Espacio desde los bordes): 80
+                        </div>
+                    </div>
+
+                    <div class="figma-step">
+                        <span class="step-number">5</span>
+                        <span class="step-text">Opcional: Cambia el color y opacidad del grid</span>
+                        <div class="step-details">
+                            • Haz clic en el cuadrado de color junto a "Layout grid"<br>
+                            • Color: Rojo o morado claro<br>
+                            • Opacity: 10-20% (para verlo sin que moleste)
+                        </div>
+                    </div>
+
+                    <div class="figma-step">
+                        <span class="step-number">6</span>
+                        <span class="step-text">Para Tablet y Mobile, crea frames separados con sus propias configuraciones</span>
+                        <div class="step-details">
+                            • Tablet: 8 columnas, Gutter 24px, Margin 40px<br>
+                            • Mobile: 4 columnas, Gutter 16px, Margin 16px
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="figma-config" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-color: #93c5fd;">
+                <div class="figma-title" style="color: #1e40af;">
+                    <span style="font-size: 28px;">📏</span>
+                    Activar el 8pt Grid en Figma
+                </div>
+
+                <div class="figma-steps">
+                    <div class="figma-step">
+                        <span class="step-number">1</span>
+                        <span class="step-text">Ve a Preferences (Cmd/Ctrl + ,)</span>
+                    </div>
+
+                    <div class="figma-step">
+                        <span class="step-number">2</span>
+                        <span class="step-text">En la sección "Nudge amount", configura:</span>
+                        <div class="step-details">
+                            • Small nudge: 8px (flechas del teclado)<br>
+                            • Big nudge: 16px (Shift + flechas)
+                        </div>
+                    </div>
+
+                    <div class="figma-step">
+                        <span class="step-number">3</span>
+                        <span class="step-text">Opcional: Añade un grid visual de 8px a tu frame</span>
+                        <div class="step-details">
+                            • Layout Grid → Click en "+"<br>
+                            • Mantén tipo "Grid" (cuadrícula)<br>
+                            • Size: 8px<br>
+                            • Opacity: 5% (muy sutil, solo para referencia)
+                        </div>
+                    </div>
+
+                    <div class="figma-step">
+                        <span class="step-number">4</span>
+                        <span class="step-text">Ahora al mover elementos con las flechas, se moverán de 8 en 8 píxeles automáticamente</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tip-box tip-warning">
+                <div class="tip-title">💡 Tip profesional</div>
+                <div class="tip-text">
+                    Crea un "Frame Template" con el grid ya configurado y guárdalo como componente. Así no tienes que configurarlo cada vez. Puedes tener tres templates: Desktop (12 col), Tablet (8 col), Mobile (4 col).
+                </div>
+            </div>
+        </div>
+
+        <!-- PARTE 5: CHECKLIST -->
+        <div class="section">
+            <h2 class="section-title">
+                <span style="font-size: 36px;">📋</span>
+                Checklist para tu Design System
+            </h2>
+            <p class="section-subtitle">Asegúrate de cumplir todos estos puntos en tu sistema de grids</p>
+
+            <div class="checklist">
+                <div class="checklist-title">8pt Grid System</div>
+                
+                <div class="checklist-item">
+                    <div class="check-icon">✓</div>
+                    <div class="checklist-text">
+                        <strong>Todos los paddings son múltiplos de 8</strong><br>
+                        <span style="font-size: 13px; color: #6b7280;">Ejemplo: 16px, 24px, 32px, 48px</span>
+                    </div>
+                </div>
+
+                <div class="checklist-item">
+                    <div class="check-icon">✓</div>
+                    <div class="checklist-text">
+                        <strong>Todos los margins son múltiplos de 8</strong><br>
+                        <span style="font-size: 13px; color: #6b7280;">Entre secciones, entre componentes, etc.</span>
+                    </div>
+                </div>
+
+                <div class="checklist-item">
+                    <div class="check-icon">✓</div>
+                    <div class="checklist-text">
+                        <strong>Todos los gaps son múltiplos de 8</strong><br>
+                        <span style="font-size: 13px; color: #6b7280;">Entre elementos en flex/grid, entre cards, etc.</span>
+                    </div>
+                </div>
+
+                <div class="checklist-item">
+                    <div class="check-icon">✓</div>
+                    <div class="checklist-text">
+                        <strong>Tamaños de componentes en múltiplos de 8</strong><br>
+                        <span style="font-size: 13px; color: #6b7280;">Altura de botones, cards, iconos, etc.</span>
+                    </div>
+                </div>
+
+                <div class="checklist-item">
+                    <div class="check-icon">✓</div>
+                    <div class="checklist-text">
+                        <strong>Border radius opcional pero consistente</strong><br>
+                        <span style="font-size: 13px; color: #6b7280;">Usa 4px, 8px, 12px, 16px (múltiplos de 4 mínimo)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="checklist">
+                <div class="checklist-title">Layout Grid (Columnas)</div>
+                
+                <div class="checklist-item">
+                    <div class="check-icon">✓</div>
+                    <div class="checklist-text">
+                        <strong>Desktop: 12 columnas configuradas</strong><br>
+                        <span style="font-size: 13px; color: #6b7280;">Type: Stretch, Gutter 24px, Margin 80px</span>
+                    </div>
+                </div>
+
+                <div class="checklist-item">
+                    <div class="check-icon">✓</div>
+                    <div class="checklist-text">
+                        <strong>Tablet: 8 columnas configuradas</strong><br>
+                        <span style="font-size: 13px; color: #6b7280;">Type: Stretch, Gutter 24px, Margin 40px</span>
+                    </div>
+                </div>
+
+                <div class="checklist-item">
+                    <div class="check-icon">✓</div>
+                    <div class="checklist-text">
+                        <strong>Mobile: 4 columnas configuradas</strong><br>
+                        <span style="font-size: 13px; color: #6b7280;">Type: Stretch, Gutter 16px, Margin 16px</span>
+                    </div>
+                </div>
+
+                <div class="checklist-item">
+                    <div class="check-icon">✓</div>
+                    <div class="checklist-text">
+                        <strong>Contenido alineado al grid</strong><br>
+                        <span style="font-size: 13px; color: #6b7280;">Cards y secciones ocupan un número entero de columnas</span>
+                    </div>
+                </div>
+
+                <div class="checklist-item">
+                    <div class="check-icon">✓</div>
+                    <div class="checklist-text">
+                        <strong>Nudge configurado en Figma</strong><br>
+                        <span style="font-size: 13px; color: #6b7280;">Small nudge: 8px, Big nudge: 16px</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RESUMEN FINAL -->
+        <div class="section" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white;">
+            <h2 style="color: white; font-size: 28px; margin-bottom: 25px; font-weight: 700;">✨ Resumen: Los 2 Sistemas de Grids</h2>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 30px;">
+                <div style="background: rgba(255,255,255,0.15); padding: 30px; border-radius: 12px; backdrop-filter: blur(10px);">
+                    <div style="font-size: 48px; margin-bottom: 15px;">8️⃣</div>
+                    <h3 style="font-size: 22px; margin-bottom: 15px; font-weight: 700;">8pt Grid System</h3>
+                    <p style="font-size: 15px; opacity: 0.95; line-height: 1.6; margin-bottom: 15px;">
+                        Para ESPACIADO y TAMAÑOS. TODO debe ser múltiplo de 8px.
+                    </p>
+                    <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; font-size: 14px; line-height: 1.8;">
+                        <strong>Usa SIEMPRE para:</strong><br>
+                        • Padding (interno de elementos)<br>
+                        • Margin (externo entre elementos)<br>
+                        • Gaps (espacios en flex/grid)<br>
+                        • Alturas de elementos<br>
+                        • Anchos cuando sean fijos<br>
+                        • Border radius (opcional, múltiplo de 4)<br>
+                        • CUALQUIER distancia o tamaño
+                    </div>
+                </div>
+
+                <div style="background: rgba(255,255,255,0.15); padding: 30px; border-radius: 12px; backdrop-filter: blur(10px);">
+                    <div style="font-size: 48px; margin-bottom: 15px;">📐</div>
+                    <h3 style="font-size: 22px; margin-bottom: 15px; font-weight: 700;">Layout Grid (Columnas)</h3>
+                    <p style="font-size: 15px; opacity: 0.95; line-height: 1.6; margin-bottom: 15px;">
+                        Para ORGANIZAR el ANCHO de contenedores. Desktop 12, Tablet 8, Mobile 4.
+                    </p>
+                    <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; font-size: 14px; line-height: 1.8;">
+                        <strong>Usa SOLO para decidir el ANCHO de:</strong><br>
+                        • Contenedores principales<br>
+                        • Cards (¿ocupa 4 o 6 columnas?)<br>
+                        • Secciones (main 8 cols + sidebar 4 cols)<br>
+                        • Grids de productos<br>
+                        • Layout general de la página<br><br>
+                        <strong style="color: #fef3c7;">⚠️ NO para elementos internos como botones, textos, iconos</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 40px; padding: 25px; background: rgba(255,255,255,0.15); border-radius: 12px; backdrop-filter: blur(10px);">
+                <h3 style="font-size: 20px; margin-bottom: 15px; font-weight: 700;">🎯 Regla de Oro: Cuándo usar cada uno</h3>
+                
+                <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="font-size: 18px; font-weight: 700; margin-bottom: 12px;">📐 ¿Pregunta sobre ANCHO de contenedores? → Layout Grid (Columnas)</div>
+                    <div style="font-size: 15px; line-height: 1.7; opacity: 0.95;">
+                        "¿Cuántas cards caben por fila?"<br>
+                        "¿Cuánto ancho ocupa el sidebar?"<br>
+                        "¿La card ocupa 4 o 6 columnas?"<br>
+                        → <strong>Usa las columnas del grid</strong>
+                    </div>
+                </div>
+
+                <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 8px;">
+                    <div style="font-size: 18px; font-weight: 700; margin-bottom: 12px;">8️⃣ ¿Pregunta sobre ESPACIOS o TAMAÑOS? → 8pt Grid</div>
+                    <div style="font-size: 15px; line-height: 1.7; opacity: 0.95;">
+                        "¿Cuánto padding le pongo a la card?"<br>
+                        "¿Qué espacio dejo entre el título y el precio?"<br>
+                        "¿Qué gap pongo entre botones?"<br>
+                        "¿Qué altura tiene el botón?"<br>
+                        → <strong>Usa múltiplos de 8 (8px, 16px, 24px, 32px...)</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 30px; padding: 25px; background: rgba(255,255,255,0.15); border-radius: 12px; backdrop-filter: blur(10px);">
+                <h3 style="font-size: 20px; margin-bottom: 15px; font-weight: 700;">✅ Checklist Final</h3>
+                <ol style="font-size: 16px; line-height: 2; padding-left: 25px;">
+                    <li><strong>8pt Grid es OBLIGATORIO para TODO</strong> - Cada medida debe ser múltiplo de 8</li>
+                    <li><strong>Layout Grid desde el wireframe</strong> - Configúralo en Desktop (12 col), Tablet (8 col), Mobile (4 col)</li>
+                    <li><strong>Type: Stretch siempre</strong> - Las columnas se adaptan al ancho del frame</li>
+                    <li><strong>El grid se oculta al exportar</strong> - Ctrl/Cmd + G para mostrar/ocultar</li>
+                    <li><strong>Revisa antes de finalizar</strong> - ¿Todo es múltiplo de 8? ¿Los contenedores siguen las columnas?</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <div style="text-align: center; padding: 40px 20px; color: #6b7280;">
+        <p style="font-size: 14px;">Material educativo para aprender sistemas de grids en diseño</p>
+        <p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">El 8pt Grid System es usado por Google (Material Design), Apple, Airbnb, y la mayoría de design systems profesionales</p>
+    </div>
+
+</body></html>
