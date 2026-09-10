@@ -3,7 +3,7 @@
 Material del módulo **Diseño de Interfaces Web (DIWEB)** — 2º DAW.  
 Profesor: **Julio Ángel González García**
 
-[Volver al Índice General](../INDICE_GENERAL.md) | [Volver al README](../README.md) | [Ver infografía interactiva](infografia_interactiva.html)
+[Volver al Índice General](../INDICE_GENERAL.md) | [Volver al README](../README.md) | 🌐 [Ver infografía interactiva](https://hljagonzalez.github.io/APUNTES-DIWEB-CURSO-26-27/UD1_Planificacion_Interfaces/infografia_interactiva.html)
 
 ---
 

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DIWEB — Diseño de Interfaces Web (2º DAW)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            min-height: 100vh;
+        }
+        .card-hover {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px -6px rgba(37, 99, 235, 0.15), 0 4px 8px -4px rgba(0, 0, 0, 0.06);
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased p-4 md:p-8">
+
+    <main class="max-w-6xl mx-auto">
+        <!-- Header Principal -->
+        <header class="text-center mb-12">
+            <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold mb-4 tracking-wide uppercase">
+                DIWEB • 2º DAW • Curso 2026/2027
+            </div>
+            <h1 class="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-3">
+                Diseño de Interfaces Web
+            </h1>
+            <p class="text-lg md:text-xl text-slate-600 font-medium mb-6">
+                Materiales interactivos e infografías • Profesor: <span class="text-blue-600 font-semibold">Julio Ángel González García</span>
+            </p>
+            <div class="flex flex-wrap items-center justify-center gap-3">
+                <a href="presentacion_modulo.html" 
+                   class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition">
+                    <span>🌟 Ver Presentación del Módulo</span>
+                </a>
+                <a href="https://forms.gle/F17dSqFPrn9hga1aA" target="_blank" rel="noopener noreferrer"
+                   class="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 font-semibold px-5 py-2.5 rounded-xl border border-slate-200 shadow-sm transition">
+                    <span>📋 Encuesta Inicial</span>
+                </a>
+                <a href="https://github.com/hljagonzalez/APUNTES-DIWEB-CURSO-26-27" target="_blank" rel="noopener noreferrer"
+                   class="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition">
+                    <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    <span>Repositorio GitHub</span>
+                </a>
+            </div>
+        </header>
+
+        <!-- Bloque Unidad 1 -->
+        <section class="mb-14">
+            <div class="flex items-center justify-between mb-6 pb-3 border-b border-slate-200">
+                <div>
+                    <span class="text-xs font-bold uppercase tracking-wider text-blue-600">Unidad Didáctica 1</span>
+                    <h2 class="text-2xl md:text-3xl font-bold text-slate-900">Planificación de Interfaces Gráficas</h2>
+                </div>
+                <span class="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
+                    Disponible
+                </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Tarjeta 1: Infografía interactiva 13 puntos -->
+                <a href="UD1_Planificacion_Interfaces/infografia_interactiva.html" 
+                   class="card-hover block bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                    <div class="text-4xl mb-4 p-3 bg-blue-50 w-fit rounded-xl border border-blue-100">✍️</div>
+                    <span class="text-xs font-semibold text-blue-600 uppercase">Infografía Interactiva</span>
+                    <h3 class="text-lg font-bold text-slate-900 mt-1 mb-2">13 Puntos Clave de Planificación</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                        Explora los conceptos fundamentales: percepción visual, Gestalt, arquitectura y prototipado.
+                    </p>
+                    <span class="text-xs font-semibold text-blue-600 flex items-center gap-1">
+                        Abrir infografía <span>→</span>
+                    </span>
+                </a>
+
+                <!-- Tarjeta 2: Paletas de Color -->
+                <a href="UD1_Planificacion_Interfaces/guia_paletas_color.html" 
+                   class="card-hover block bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                    <div class="text-4xl mb-4 p-3 bg-indigo-50 w-fit rounded-xl border border-indigo-100">🎨</div>
+                    <span class="text-xs font-semibold text-indigo-600 uppercase">Guía Interactiva</span>
+                    <h3 class="text-lg font-bold text-slate-900 mt-1 mb-2">Paletas de Color para Diseño Web</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                        Aprende a estructurar colores primarios, secundarios, neutros y reglas de contraste accesible (WCAG).
+                    </p>
+                    <span class="text-xs font-semibold text-indigo-600 flex items-center gap-1">
+                        Abrir guía de color <span>→</span>
+                    </span>
+                </a>
+
+                <!-- Tarjeta 3: Tipografía -->
+                <a href="UD1_Planificacion_Interfaces/sistema_tipografico.html" 
+                   class="card-hover block bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                    <div class="text-4xl mb-4 p-3 bg-violet-50 w-fit rounded-xl border border-violet-100">🔤</div>
+                    <span class="text-xs font-semibold text-violet-600 uppercase">Sistema Tipográfico</span>
+                    <h3 class="text-lg font-bold text-slate-900 mt-1 mb-2">Escalas Tipográficas y Jerarquía</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                        Jerarquía visual, alturas de línea, fuentes legibles y reglas de diseño tipográfico para pantallas.
+                    </p>
+                    <span class="text-xs font-semibold text-violet-600 flex items-center gap-1">
+                        Abrir sistema tipográfico <span>→</span>
+                    </span>
+                </a>
+
+                <!-- Tarjeta 4: Grids -->
+                <a href="UD1_Planificacion_Interfaces/sistema_grids.html" 
+                   class="card-hover block bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                    <div class="text-4xl mb-4 p-3 bg-amber-50 w-fit rounded-xl border border-amber-100">📐</div>
+                    <span class="text-xs font-semibold text-amber-600 uppercase">Design System</span>
+                    <h3 class="text-lg font-bold text-slate-900 mt-1 mb-2">Sistema de Grids y Maquetación</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                        Columnas, gutters, márgenes y breakpoints responsive para diseño adaptable.
+                    </p>
+                    <span class="text-xs font-semibold text-amber-600 flex items-center gap-1">
+                        Abrir sistema de grids <span>→</span>
+                    </span>
+                </a>
+
+                <!-- Tarjeta 5: Iconografía -->
+                <a href="UD1_Planificacion_Interfaces/sistema_iconografia.html" 
+                   class="card-hover block bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                    <div class="text-4xl mb-4 p-3 bg-emerald-50 w-fit rounded-xl border border-emerald-100">🔍</div>
+                    <span class="text-xs font-semibold text-emerald-600 uppercase">Design System</span>
+                    <h3 class="text-lg font-bold text-slate-900 mt-1 mb-2">Sistema de Iconografía</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                        Coherencia visual, cajas de 24px, peso de trazo y accesibilidad mediante etiquetas ARIA.
+                    </p>
+                    <span class="text-xs font-semibold text-emerald-600 flex items-center gap-1">
+                        Abrir sistema de iconografía <span>→</span>
+                    </span>
+                </a>
+
+                <!-- Tarjeta 6: Figma -->
+                <a href="UD1_Planificacion_Interfaces/guia_figma.html" 
+                   class="card-hover block bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                    <div class="text-4xl mb-4 p-3 bg-rose-50 w-fit rounded-xl border border-rose-100">🎯</div>
+                    <span class="text-xs font-semibold text-rose-600 uppercase">Herramientas Pro</span>
+                    <h3 class="text-lg font-bold text-slate-900 mt-1 mb-2">Colaboración y Organización en Figma</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                        Estructura de proyectos, páginas, versionado, comentarios y trabajo colaborativo en equipo.
+                    </p>
+                    <span class="text-xs font-semibold text-rose-600 flex items-center gap-1">
+                        Abrir guía de Figma <span>→</span>
+                    </span>
+                </a>
+
+                <!-- Tarjeta 7: Botones -->
+                <a href="UD1_Planificacion_Interfaces/sistema_botones.html" 
+                   class="card-hover block bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                    <div class="text-4xl mb-4 p-3 bg-cyan-50 w-fit rounded-xl border border-cyan-100">🔘</div>
+                    <span class="text-xs font-semibold text-cyan-600 uppercase">Componentes UI</span>
+                    <h3 class="text-lg font-bold text-slate-900 mt-1 mb-2">Sistema de Botones Interactivo</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                        Variantes primaria, secundaria, outline, estados (hover, active, focus, disabled) y microinteracciones.
+                    </p>
+                    <span class="text-xs font-semibold text-cyan-600 flex items-center gap-1">
+                        Abrir sistema de botones <span>→</span>
+                    </span>
+                </a>
+            </div>
+        </section>
+
+        <!-- Bloque Próximas Unidades -->
+        <section class="mb-14">
+            <div class="mb-6 pb-3 border-b border-slate-200">
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Plan del Curso</span>
+                <h2 class="text-2xl font-bold text-slate-800">Próximas Unidades Didácticas</h2>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div class="bg-white/60 rounded-xl p-5 border border-dashed border-slate-300 text-center">
+                    <div class="text-3xl mb-2 opacity-60">♿</div>
+                    <span class="text-xs font-semibold text-slate-400 uppercase">UD2</span>
+                    <h4 class="text-sm font-bold text-slate-700 mt-1">Accesibilidad Web</h4>
+                    <span class="inline-block mt-3 px-2 py-0.5 bg-slate-100 text-slate-500 text-[11px] font-medium rounded-full">Próximamente</span>
+                </div>
+                <div class="bg-white/60 rounded-xl p-5 border border-dashed border-slate-300 text-center">
+                    <div class="text-3xl mb-2 opacity-60">🧠</div>
+                    <span class="text-xs font-semibold text-slate-400 uppercase">UD3</span>
+                    <h4 class="text-sm font-bold text-slate-700 mt-1">Usabilidad</h4>
+                    <span class="inline-block mt-3 px-2 py-0.5 bg-slate-100 text-slate-500 text-[11px] font-medium rounded-full">Próximamente</span>
+                </div>
+                <div class="bg-white/60 rounded-xl p-5 border border-dashed border-slate-300 text-center">
+                    <div class="text-3xl mb-2 opacity-60">🎨</div>
+                    <span class="text-xs font-semibold text-slate-400 uppercase">UD4</span>
+                    <h4 class="text-sm font-bold text-slate-700 mt-1">Interfaces y Estilos</h4>
+                    <span class="inline-block mt-3 px-2 py-0.5 bg-slate-100 text-slate-500 text-[11px] font-medium rounded-full">Próximamente</span>
+                </div>
+                <div class="bg-white/60 rounded-xl p-5 border border-dashed border-slate-300 text-center">
+                    <div class="text-3xl mb-2 opacity-60">🎬</div>
+                    <span class="text-xs font-semibold text-slate-400 uppercase">UD5</span>
+                    <h4 class="text-sm font-bold text-slate-700 mt-1">Contenido Multimedia</h4>
+                    <span class="inline-block mt-3 px-2 py-0.5 bg-slate-100 text-slate-500 text-[11px] font-medium rounded-full">Próximamente</span>
+                </div>
+                <div class="bg-white/60 rounded-xl p-5 border border-dashed border-slate-300 text-center">
+                    <div class="text-3xl mb-2 opacity-60">⚡</div>
+                    <span class="text-xs font-semibold text-slate-400 uppercase">UD6</span>
+                    <h4 class="text-sm font-bold text-slate-700 mt-1">Interactividad</h4>
+                    <span class="inline-block mt-3 px-2 py-0.5 bg-slate-100 text-slate-500 text-[11px] font-medium rounded-full">Próximamente</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="text-center py-8 border-t border-slate-200 text-slate-500 text-sm">
+            <p>© 2026/2027 Diseño de Interfaces Web (DIWEB) | IES Hermenegildo Lanz</p>
+            <p class="mt-1">Profesor: Julio Ángel González García</p>
+        </footer>
+    </main>
+
+</body>
+</html>

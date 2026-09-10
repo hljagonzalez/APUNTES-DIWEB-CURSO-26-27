@@ -2,7 +2,7 @@
 
 Guía práctica de organización de archivos, gestión de equipos y flujos de trabajo en Figma para el ciclo de **Desarrollo de Aplicaciones Web (DAW)**.
 
-[Volver a la UD1](01_Planificacion_de_Interfaces.md) | [Volver al Índice General](../INDICE_GENERAL.md) | 🌐 [Abrir versión interactiva en el navegador](guia_figma.html)
+[Volver a la UD1](01_Planificacion_de_Interfaces.md) | [Volver al Índice General](../INDICE_GENERAL.md) | 🌐 [Abrir infografía interactiva en el navegador](https://hljagonzalez.github.io/APUNTES-DIWEB-CURSO-26-27/UD1_Planificacion_Interfaces/guia_figma.html)
 
 ---
 

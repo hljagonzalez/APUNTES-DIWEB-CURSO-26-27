@@ -3,7 +3,7 @@
 **2º Curso de Desarrollo de Aplicaciones Web (DAW)**  
 **Profesor:** Julio Ángel González García  
 
-[Ir al Índice General](INDICE_GENERAL.md) | [Ir al README principal](README.md) | [Ver presentación interactiva](presentacion_modulo.html)
+[Ir al Índice General](INDICE_GENERAL.md) | [Ir al README principal](README.md) | 🌐 [Ver presentación interactiva](https://hljagonzalez.github.io/APUNTES-DIWEB-CURSO-26-27/presentacion_modulo.html)
 
 ---
 

@@ -3,9 +3,9 @@
 Un curso impartido por **Julio Ángel González García**  
 2º Curso de Desarrollo de Aplicaciones Web (DAW)
 
-[Ir al Índice General](INDICE_GENERAL.md) | [Ver presentación en Markdown](PRESENTACION_MODULO.md) | [Ver presentación interactiva](presentacion_modulo.html)
+[Ir al Índice General](INDICE_GENERAL.md) | [Ver presentación en Markdown](PRESENTACION_MODULO.md) | [Ver presentación interactiva](https://hljagonzalez.github.io/APUNTES-DIWEB-CURSO-26-27/presentacion_modulo.html) | 🌐 [Portal Web en Vivo](https://hljagonzalez.github.io/APUNTES-DIWEB-CURSO-26-27/)
 
----
+> 🌐 **Web del curso (GitHub Pages):** Accede a todas las infografías y materiales interactivos directamente en el navegador: [**https://hljagonzalez.github.io/APUNTES-DIWEB-CURSO-26-27/**](https://hljagonzalez.github.io/APUNTES-DIWEB-CURSO-26-27/)
 
 ## ¡Te damos la bienvenida!
 
