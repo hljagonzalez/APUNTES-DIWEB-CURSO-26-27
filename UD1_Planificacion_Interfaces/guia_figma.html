@@ -45,7 +45,27 @@
         }
     </style>
 </head>
-<body class="text-slate-800 antialiased">
+<body class="text-slate-800 antialiased pt-16 pb-16">
+<!-- DIWEB Topbar -->
+<style>
+#diweb-nav{position:fixed;top:0;left:0;right:0;height:52px;background:rgba(15,23,42,0.97);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:space-between;padding:0 1.25rem;z-index:99999;font-family:'Inter',system-ui,sans-serif;box-shadow:0 1px 0 rgba(255,255,255,0.07),0 2px 20px rgba(0,0,0,0.35);}#diweb-nav a{text-decoration:none;}.dnav-brand{display:flex;align-items:center;gap:8px;flex-shrink:0;}.dnav-logo{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;letter-spacing:-0.5px;flex-shrink:0;}.dnav-name{font-size:0.85rem;font-weight:700;color:#f1f5f9;}.dnav-crumb{display:flex;align-items:center;gap:5px;font-size:0.72rem;color:#64748b;flex:1;justify-content:center;overflow:hidden;padding:0 0.5rem;}.dnav-crumb a{color:#64748b;}.dnav-crumb a:hover{color:#cbd5e1;}.dnav-sep{color:#334155;}.dnav-cur{color:#cbd5e1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;}.dnav-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}.dnav-gh{display:flex;align-items:center;gap:5px;color:#64748b;font-size:0.72rem;font-weight:500;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,0.05);transition:all 0.15s;}.dnav-gh:hover{color:#f1f5f9;background:rgba(255,255,255,0.1);}.dnav-gh svg{width:14px;height:14px;fill:currentColor;flex-shrink:0;}@media(max-width:480px){.dnav-gh span{display:none;}.dnav-cur{max-width:100px;}}
+</style>
+<nav id="diweb-nav">
+  <a href="../index.html" class="dnav-brand"><div class="dnav-logo">D</div><span class="dnav-name">DIWEB</span></a>
+  <div class="dnav-crumb">
+    <a href="../index.html">Inicio</a><span class="dnav-sep">›</span>
+    <a href="index.html">UD1</a><span class="dnav-sep">›</span>
+    <span class="dnav-cur">Colaboración en Figma</span>
+  </div>
+  <div class="dnav-actions">
+    <a href="https://github.com/hljagonzalez/APUNTES-DIWEB-CURSO-26-27" target="_blank" class="dnav-gh">
+      <svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      <span>GitHub</span>
+    </a>
+  </div>
+</nav>
+<div style="height:52px"></div>
+<!-- /DIWEB Topbar -->
 
     <div class="main-header">
         <h1>💻 Colaboración y Organización en Figma</h1>
@@ -191,6 +211,21 @@
             <p>© 2026/2027 Diseño de Interfaces Web (DIWEB) | Material docente</p>
         </footer>
     </main>
+
+<!-- DIWEB Bottom Nav -->
+<div style="height:64px"></div>
+<style>
+#diweb-bnav{position:fixed;bottom:0;left:0;right:0;height:56px;background:rgba(255,255,255,0.97);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;padding:0 1rem;z-index:99999;font-family:'Inter',system-ui,sans-serif;box-shadow:0 -4px 20px rgba(0,0,0,0.07);gap:8px;}#diweb-bnav a{display:inline-flex;align-items:center;gap:5px;font-size:0.78rem;font-weight:600;text-decoration:none;padding:7px 14px;border-radius:9px;transition:all 0.15s;white-space:nowrap;}.dbnav-prev{color:#475569;background:#f1f5f9;}.dbnav-prev:hover{background:#e2e8f0;color:#1e293b;}.dbnav-idx{color:#2563eb;background:#eff6ff;}.dbnav-idx:hover{background:#dbeafe;}.dbnav-next{color:#fff;background:#2563eb;}.dbnav-next:hover{background:#1d4ed8;}.dbnav-disabled{opacity:0.35;pointer-events:none;}.dbnav-center{display:flex;flex-direction:column;align-items:center;gap:2px;}.dbnav-label{color:#94a3b8;font-size:0.65rem;font-weight:500;font-family:'Inter',system-ui,sans-serif;}@media(max-width:480px){.dbnav-label{display:none;}}
+</style>
+<nav id="diweb-bnav">
+  <a href="maquetacion_plantillas.html" class="dbnav-prev">← Maquetación Web</a>
+  <div class="dbnav-center">
+    <span class="dbnav-label">7 / 8</span>
+    <a href="index.html" class="dbnav-idx">↑ UD1</a>
+  </div>
+  <a href="sistema_botones.html" class="dbnav-next">Sistema de Botones →</a>
+</nav>
+<!-- /DIWEB Bottom Nav -->
 
 </body>
 </html>

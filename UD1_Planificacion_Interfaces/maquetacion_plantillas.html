@@ -1,0 +1,1640 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Maquetación Web y Plantillas de Diseño</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        --primary-color: #2563eb;
+        --secondary-color: #7c3aed;
+        --accent-color: #f59e0b;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --danger-color: #ef4444;
+        --dark: #1e293b;
+        --gray: #64748b;
+        --light-gray: #f1f5f9;
+        --border: #e2e8f0;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.6;
+        color: var(--dark);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      }
+
+      header {
+        background: linear-gradient(
+          135deg,
+          var(--primary-color) 0%,
+          var(--secondary-color) 100%
+        );
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+      }
+
+      header h1 {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      header p {
+        font-size: 1.1rem;
+        color: white;
+        opacity: 0.95;
+      }
+
+      nav {
+        background: var(--dark);
+        padding: 1rem 2rem;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      nav ul {
+        list-style: none;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2rem;
+        justify-content: center;
+      }
+
+      nav a {
+        color: white;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.3s;
+      }
+
+      nav a:hover {
+        color: var(--accent-color);
+      }
+
+      main {
+        padding: 3rem 2rem;
+      }
+
+      section {
+        margin-bottom: 4rem;
+        scroll-margin-top: 80px;
+      }
+
+      h2 {
+        color: var(--primary-color);
+        font-size: 2rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid var(--primary-color);
+      }
+
+      h3 {
+        color: var(--secondary-color);
+        font-size: 1.5rem;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+      }
+
+      h4 {
+        color: var(--dark);
+        font-size: 1.2rem;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+      }
+
+      p {
+        margin-bottom: 1rem;
+        color: var(--gray);
+      }
+
+      .info-box {
+        background: var(--light-gray);
+        border-left: 4px solid var(--primary-color);
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        border-radius: 0 8px 8px 0;
+      }
+
+      .warning-box {
+        background: #fef3c7;
+        border-left: 4px solid var(--warning-color);
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        border-radius: 0 8px 8px 0;
+      }
+
+      .success-box {
+        background: #d1fae5;
+        border-left: 4px solid var(--success-color);
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        border-radius: 0 8px 8px 0;
+      }
+
+      .danger-box {
+        background: #fee2e2;
+        border-left: 4px solid var(--danger-color);
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        border-radius: 0 8px 8px 0;
+      }
+
+      .code-block {
+        background: #1e293b;
+        color: #e2e8f0;
+        padding: 1.5rem;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 1.5rem 0;
+        font-family: "Courier New", monospace;
+        line-height: 1.5;
+      }
+
+      .diagram-box {
+        background: white;
+        border: 2px solid var(--border);
+        padding: 2rem;
+        border-radius: 8px;
+        margin: 1.5rem 0;
+        font-family: monospace;
+        overflow-x: auto;
+        white-space: pre;
+        font-size: 0.9rem;
+        line-height: 1.4;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      table thead {
+        background: linear-gradient(
+          135deg,
+          var(--primary-color) 0%,
+          var(--secondary-color) 100%
+        );
+        color: white;
+      }
+
+      table th,
+      table td {
+        padding: 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+      }
+
+      table tbody tr:hover {
+        background: var(--light-gray);
+      }
+
+      ul,
+      ol {
+        margin-left: 2rem;
+        margin-bottom: 1rem;
+      }
+
+      ul li,
+      ol li {
+        margin-bottom: 0.5rem;
+        color: var(--gray);
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin: 2rem 0;
+      }
+
+      .feature-card {
+        background: white;
+        border: 2px solid var(--border);
+        border-radius: 8px;
+        padding: 1.5rem;
+        transition:
+          transform 0.3s,
+          box-shadow 0.3s;
+      }
+
+      .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+      }
+
+      .feature-card h4 {
+        margin-top: 0;
+        color: var(--primary-color);
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+      }
+
+      .badge-success {
+        background: var(--success-color);
+        color: white;
+      }
+
+      .badge-warning {
+        background: var(--warning-color);
+        color: white;
+      }
+
+      .badge-danger {
+        background: var(--danger-color);
+        color: white;
+      }
+
+      .badge-info {
+        background: var(--primary-color);
+        color: white;
+      }
+
+      .comparison-table {
+        margin: 2rem 0;
+      }
+
+      .process-flow {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin: 2rem 0;
+        flex-wrap: wrap;
+      }
+
+      .process-step {
+        background: linear-gradient(
+          135deg,
+          var(--primary-color) 0%,
+          var(--secondary-color) 100%
+        );
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 600;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .process-arrow {
+        font-size: 1.5rem;
+        color: var(--gray);
+      }
+
+      footer {
+        background: var(--dark);
+        color: white;
+        text-align: center;
+        padding: 2rem;
+      }
+
+      @media (max-width: 768px) {
+        header h1 {
+          font-size: 1.8rem;
+        }
+
+        nav ul {
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+
+        main {
+          padding: 2rem 1rem;
+        }
+
+        .process-flow {
+          flex-direction: column;
+        }
+
+        .process-arrow {
+          transform: rotate(90deg);
+        }
+      }
+
+      .emoji {
+        font-size: 1.5rem;
+        margin-right: 0.5rem;
+      }
+
+      .checklist {
+        list-style: none;
+        margin-left: 0;
+      }
+
+      .checklist li::before {
+        content: "☐ ";
+        color: var(--primary-color);
+        font-size: 1.2rem;
+        margin-right: 0.5rem;
+      }
+
+      .resources-list {
+        background: var(--light-gray);
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+      }
+
+      .resources-list a {
+        color: var(--primary-color);
+        text-decoration: none;
+        font-weight: 500;
+      }
+
+      .resources-list a:hover {
+        text-decoration: underline;
+      }
+
+      .stars {
+        color: var(--accent-color);
+      }
+    </style>
+  </head>
+  <body style="padding-top:52px;padding-bottom:64px">
+<!-- DIWEB Topbar -->
+<style>
+#diweb-nav{position:fixed;top:0;left:0;right:0;height:52px;background:rgba(15,23,42,0.97);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:space-between;padding:0 1.25rem;z-index:99999;font-family:'Inter',system-ui,sans-serif;box-shadow:0 1px 0 rgba(255,255,255,0.07),0 2px 20px rgba(0,0,0,0.35);}#diweb-nav a{text-decoration:none;}.dnav-brand{display:flex;align-items:center;gap:8px;flex-shrink:0;}.dnav-logo{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;letter-spacing:-0.5px;flex-shrink:0;}.dnav-name{font-size:0.85rem;font-weight:700;color:#f1f5f9;}.dnav-crumb{display:flex;align-items:center;gap:5px;font-size:0.72rem;color:#64748b;flex:1;justify-content:center;overflow:hidden;padding:0 0.5rem;}.dnav-crumb a{color:#64748b;}.dnav-crumb a:hover{color:#cbd5e1;}.dnav-sep{color:#334155;}.dnav-cur{color:#cbd5e1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;}.dnav-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}.dnav-gh{display:flex;align-items:center;gap:5px;color:#64748b;font-size:0.72rem;font-weight:500;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,0.05);transition:all 0.15s;}.dnav-gh:hover{color:#f1f5f9;background:rgba(255,255,255,0.1);}.dnav-gh svg{width:14px;height:14px;fill:currentColor;flex-shrink:0;}@media(max-width:480px){.dnav-gh span{display:none;}.dnav-cur{max-width:100px;}}
+</style>
+<nav id="diweb-nav">
+  <a href="../index.html" class="dnav-brand"><div class="dnav-logo">D</div><span class="dnav-name">DIWEB</span></a>
+  <div class="dnav-crumb">
+    <a href="../index.html">Inicio</a><span class="dnav-sep">›</span>
+    <a href="index.html">UD1</a><span class="dnav-sep">›</span>
+    <span class="dnav-cur">Maquetación Web y Plantillas</span>
+  </div>
+  <div class="dnav-actions">
+    <a href="https://github.com/hljagonzalez/APUNTES-DIWEB-CURSO-26-27" target="_blank" class="dnav-gh">
+      <svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      <span>GitHub</span>
+    </a>
+  </div>
+</nav>
+<div style="height:52px"></div>
+<!-- /DIWEB Topbar -->
+    <div class="container">
+      <header>
+        <h1>🎨 Maquetación Web y Plantillas de Diseño</h1>
+        <p>
+          Guía completa sobre Sketches, Wireframes, Mockups, Prototipos y
+          Plantillas
+        </p>
+      </header>
+
+      <nav>
+        <ul>
+          <li>
+            <a href="javascript:void(0)" data-target="introduccion"
+              >Introducción</a
+            >
+          </li>
+          <li>
+            <a href="javascript:void(0)" data-target="sketches">Sketches</a>
+          </li>
+          <li>
+            <a href="javascript:void(0)" data-target="wireframes">Wireframes</a>
+          </li>
+          <li>
+            <a href="javascript:void(0)" data-target="mockups">Mockups</a>
+          </li>
+          <li>
+            <a href="javascript:void(0)" data-target="prototipos">Prototipos</a>
+          </li>
+          <li>
+            <a href="javascript:void(0)" data-target="plantillas">Plantillas</a>
+          </li>
+          <li>
+            <a href="javascript:void(0)" data-target="conclusiones"
+              >Conclusiones</a
+            >
+          </li>
+        </ul>
+      </nav>
+
+      <main>
+        <!-- INTRODUCCIÓN -->
+        <section id="introduccion">
+          <h2>📋 Introducción a la Maquetación Web</h2>
+
+          <h3>¿Qué es la Maquetación Web?</h3>
+          <p>
+            Cuando comenzamos un proyecto web, debemos pensar en el sitio como
+            una <strong>obra arquitectónica</strong>. Al igual que un arquitecto
+            no construye un edificio sin planos, nosotros no desarrollamos un
+            sitio web sin una maqueta.
+          </p>
+
+          <h3>Proceso de Maquetación</h3>
+          <p>
+            El primer paso es <strong>hablar con el cliente</strong> para
+            obtener los datos suficientes y realizar los bocetos preliminares.
+            Debemos saber y pensar previamente:
+          </p>
+
+          <div class="success-box">
+            <strong>✅ Cuáles son los elementos</strong> que contendrá cada
+            página<br />
+            <strong>✅ Cómo irán colocados</strong> esos elementos dentro de las
+            páginas<br />
+            <strong>✅ El espacio disponible</strong> (ventana del navegador,
+            responsive design)
+          </div>
+
+          <h3>Diseño Escalonado</h3>
+          <p>
+            Los bocetos deben reflejar la
+            <strong>interactividad y funcionalidad</strong> del sitio web. El
+            resultado de la maquetación será un <strong>prototipo</strong>.
+          </p>
+
+          <div class="process-flow">
+            <div class="process-step">
+              SKETCH<br /><small>Baja fidelidad</small>
+            </div>
+            <div class="process-arrow">→</div>
+            <div class="process-step">
+              WIREFRAME<br /><small>Media fidelidad</small>
+            </div>
+            <div class="process-arrow">→</div>
+            <div class="process-step">
+              MOCKUP<br /><small>Alta fidelidad</small>
+            </div>
+            <div class="process-arrow">→</div>
+            <div class="process-step">
+              PROTOTIPO<br /><small>Interactivo</small>
+            </div>
+          </div>
+
+          <div class="warning-box">
+            <strong>⚠️ IMPORTANTE:</strong> No existe un único modo de
+            maquetación. Algunos autores tienen diferentes enfoques, y la
+            terminología puede variar. Lo importante es adaptar el proceso a las
+            necesidades del proyecto.
+          </div>
+        </section>
+
+        <!-- SKETCHES -->
+        <section id="sketches">
+          <h2>✏️ Sketches - Bocetos Iniciales</h2>
+
+          <h3>Definición</h3>
+          <div class="info-box">
+            El <strong>sketch</strong> es el primer boceto que realizamos para
+            un proyecto digital que queremos crear. Son nuestros primeros
+            trazos, generalmente sobre una hoja de papel (aunque también pueden
+            ser digitales).
+          </div>
+
+          <h3>Características Principales</h3>
+          <div class="feature-grid">
+            <div class="feature-card">
+              <h4>🎨 Calidad</h4>
+              <p>Bosquejo estático en <strong>baja calidad</strong></p>
+            </div>
+            <div class="feature-card">
+              <h4>📝 Medio</h4>
+              <p>Generalmente sobre <strong>papel</strong></p>
+            </div>
+            <div class="feature-card">
+              <h4>⚡ Rapidez</h4>
+              <p>Se crean <strong>rápidamente</strong> para explorar ideas</p>
+            </div>
+            <div class="feature-card">
+              <h4>✏️ Flexibilidad</h4>
+              <p>Fácil de <strong>modificar y descartar</strong></p>
+            </div>
+          </div>
+
+          <h3>¿Qué debe reflejar un Sketch?</h3>
+          <p>
+            Un sketch debe responder a las siguientes preguntas sobre las ideas
+            generales del proyecto:
+          </p>
+
+          <ul>
+            <li>
+              <strong>Elementos Característicos:</strong> ¿Dónde pondremos el
+              logo? ¿Dónde irán los elementos destacados?
+            </li>
+            <li>
+              <strong>Navegación:</strong> ¿Dónde estará la zona de navegación?
+              ¿Menú superior? ¿Lateral? ¿Footer?
+            </li>
+            <li>
+              <strong>Ayuda y Soporte:</strong> ¿Dónde se cargan los sistemas de
+              ayuda para usuarios?
+            </li>
+            <li>
+              <strong>Redes Sociales:</strong> ¿Se agregarán servicios de redes
+              sociales? ¿Dónde se ubicarán?
+            </li>
+            <li>
+              <strong>Áreas de Contenido:</strong> ¿Qué áreas de contenidos y
+              servicios queremos presentar?
+            </li>
+          </ul>
+
+          <h3>Buenas Prácticas</h3>
+          <div class="success-box">
+            <strong>✅ Añadir notas en los laterales</strong> para explicar
+            decisiones de diseño<br />
+            <strong>✅ Hacer múltiples versiones</strong> para explorar
+            diferentes opciones<br />
+            <strong>✅ No preocuparse por la estética</strong> - es solo para
+            explorar ideas<br />
+            <strong>✅ Enfocarse en la estructura</strong> y distribución
+            general
+          </div>
+
+          <h3>Ejemplo de Sketch</h3>
+          <pre class="diagram-box">
+┌─────────────────────────────────────────┐
+│ [LOGO]          MENÚ          BUSCAR 🔔 │
+├─────────────────────────────────────────┤
+│                                         │
+│         BANNER PRINCIPAL / HERO         │
+│           (Imagen + CTA)                │
+│                                         │
+├─────────────────────────────────────────┤
+│ [IMG] FEATURE 1      [IMG] FEATURE 2   │
+│ Texto descripción    Texto descripción  │
+├─────────────────────────────────────────┤
+│          SECCIÓN DE CONTENIDO           │
+│  ┌──────┐    ┌──────┐    ┌──────┐      │
+│  │ IMG  │    │ IMG  │    │ IMG  │      │
+│  │ Card │    │ Card │    │ Card │      │
+│  └──────┘    └──────┘    └──────┘      │
+├─────────────────────────────────────────┤
+│  FOOTER - Links - Social - Copyright   │
+└─────────────────────────────────────────┘
+          </pre>
+
+          <h3>Herramientas para Sketches</h3>
+          <div class="feature-grid">
+            <div class="feature-card">
+              <h4>Tradicionales</h4>
+              <ul>
+                <li>Papel y lápiz ✏️</li>
+                <li>Pizarra blanca</li>
+                <li>Post-its</li>
+              </ul>
+            </div>
+            <div class="feature-card">
+              <h4>Digitales</h4>
+              <ul>
+                <li>Figma</li>
+                <li>iPad con Apple Pencil</li>
+                <li>Balsamiq</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- WIREFRAMES -->
+        <section id="wireframes">
+          <h2>📐 Wireframes - Esquemas Estructurales</h2>
+
+          <h3>Definición</h3>
+          <div class="info-box">
+            El <strong>wireframe</strong> es una representación esquemática de
+            la interfaz que define la
+            <strong>estructura, jerarquía y funcionalidad</strong> de cada
+            página, sin incluir elementos visuales finales.
+          </div>
+
+          <h3>Características Principales</h3>
+          <div class="feature-grid">
+            <div class="feature-card">
+              <h4>🔲 Escala de grises</h4>
+              <p>Sin colores finales</p>
+            </div>
+            <div class="feature-card">
+              <h4>📐 Estructura</h4>
+              <p>Enfocado en layout y organización</p>
+            </div>
+            <div class="feature-card">
+              <h4>📦 Placeholders</h4>
+              <p>Cajas grises para imágenes</p>
+            </div>
+            <div class="feature-card">
+              <h4>🎯 Funcionalidad</h4>
+              <p>Define elementos interactivos</p>
+            </div>
+          </div>
+
+          <h3>¿Qué NO incluye un Wireframe?</h3>
+          <div class="danger-box">
+            <strong>❌ Colores finales</strong><br />
+            <strong>❌ Imágenes reales</strong><br />
+            <strong>❌ Tipografías específicas</strong><br />
+            <strong>❌ Iconografía detallada</strong><br />
+            <strong>❌ Textos definitivos</strong> (usan Lorem Ipsum)
+          </div>
+
+          <h3>¿Qué SÍ incluye un Wireframe?</h3>
+          <div class="success-box">
+            <strong>✅ Estructura de la página</strong> (header, main, aside,
+            footer)<br />
+            <strong>✅ Jerarquía de contenidos</strong> (títulos, subtítulos,
+            párrafos)<br />
+            <strong>✅ Ubicación de elementos</strong> (botones, formularios,
+            imágenes)<br />
+            <strong>✅ Tamaño relativo</strong> de los elementos<br />
+            <strong>✅ Zonas interactivas</strong> (enlaces, botones, campos)<br />
+            <strong>✅ Sistema de navegación</strong> (menús, breadcrumbs)<br />
+            <strong>✅ Grid y alineaciones</strong> básicas
+          </div>
+
+          <h3>Ejemplo Visual de Wireframe</h3>
+          <pre class="diagram-box">
+┌─────────────────────────────────────────────────┐
+│ [LOGO]    Nav Item 1  Item 2  Item 3  [BUTTON]  │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  ┌───────────────────────────┐                  │
+│  │                           │  Main Headline   │
+│  │    Placeholder Image      │  Supporting text │
+│  │       640 x 400           │  about the hero  │
+│  │                           │  [Call to Action]│
+│  └───────────────────────────┘                  │
+│                                                 │
+├─────────────────────────────────────────────────┤
+│ Section Title                                   │
+│ ──────────────────────────────────────────      │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐         │
+│  │ [IMG]   │  │ [IMG]   │  │ [IMG]   │         │
+│  │ 300x200 │  │ 300x200 │  │ 300x200 │         │
+│  ├─────────┤  ├─────────┤  ├─────────┤         │
+│  │ Title   │  │ Title   │  │ Title   │         │
+│  │ Text... │  │ Text... │  │ Text... │         │
+│  │[Button] │  │[Button] │  │[Button] │         │
+│  └─────────┘  └─────────┘  └─────────┘         │
+│                                                 │
+├─────────────────────────────────────────────────┤
+│ Footer: Link | Link | Link | Social | ©️ 2025   │
+└─────────────────────────────────────────────────┘
+          </pre>
+        </section>
+
+        <!-- MOCKUPS -->
+        <section id="mockups">
+          <h2>🎨 Mockups - Maquetas Visuales</h2>
+
+          <h3>Definición</h3>
+          <div class="info-box">
+            El <strong>mockup</strong> es una composición gráfica completa que
+            utiliza el wireframe como plantilla e introduce
+            <strong>todos los elementos gráficos y visuales finales</strong>.
+          </div>
+
+          <h3>Características Principales</h3>
+          <div class="feature-grid">
+            <div class="feature-card">
+              <h4>🎨 Alta fidelidad visual</h4>
+              <p>Diseño prácticamente final</p>
+            </div>
+            <div class="feature-card">
+              <h4>🖼️ Elementos reales</h4>
+              <p>Imágenes, iconos, ilustraciones</p>
+            </div>
+            <div class="feature-card">
+              <h4>🎨 Paleta de colores</h4>
+              <p>Colores definitivos del brand</p>
+            </div>
+            <div class="feature-card">
+              <h4>🔤 Tipografía final</h4>
+              <p>Fuentes específicas del proyecto</p>
+            </div>
+          </div>
+
+          <h3>¿Qué incluye un Mockup?</h3>
+
+          <h4>1. Contenidos</h4>
+          <ul>
+            <li>Textos dummy (Lorem Ipsum) o contenido real borrador</li>
+            <li>Estructura de información definida</li>
+            <li>Jerarquía visual clara</li>
+          </ul>
+
+          <h4>2. Paleta de Colores</h4>
+          <ul>
+            <li>Colores primarios y secundarios</li>
+            <li>Colores de acento</li>
+            <li>Fondos, textos, botones</li>
+            <li>Estados (hover, active, disabled)</li>
+          </ul>
+
+          <h4>3. Tipografía</h4>
+          <ul>
+            <li>Fuentes específicas (ej: Montserrat, Poppins)</li>
+            <li>Tamaños y pesos definidos</li>
+            <li>Jerarquía tipográfica clara</li>
+            <li>Line-height y letter-spacing</li>
+          </ul>
+
+          <h4>4. Iconografía</h4>
+          <ul>
+            <li>Icons específicos (Font Awesome, Material Icons, custom)</li>
+            <li>Estilo consistente (outlined, filled, etc.)</li>
+            <li>Tamaños apropiados</li>
+          </ul>
+
+          <h4>5. Imágenes</h4>
+          <ul>
+            <li>Fotografías reales o de stock</li>
+            <li>Ilustraciones custom</li>
+            <li>Tamaño y resolución correctos</li>
+          </ul>
+
+          <h3>Diferencias Clave: Wireframe vs Mockup</h3>
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th>Aspecto</th>
+                <th>Wireframe</th>
+                <th>Mockup</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Fidelidad</strong></td>
+                <td>Media</td>
+                <td>Alta</td>
+              </tr>
+              <tr>
+                <td><strong>Color</strong></td>
+                <td>Escala de grises</td>
+                <td>Paleta completa</td>
+              </tr>
+              <tr>
+                <td><strong>Imágenes</strong></td>
+                <td>Placeholders</td>
+                <td>Imágenes reales/finales</td>
+              </tr>
+              <tr>
+                <td><strong>Tipografía</strong></td>
+                <td>Genérica</td>
+                <td>Específica del brand</td>
+              </tr>
+              <tr>
+                <td><strong>Objetivo</strong></td>
+                <td>Estructura y layout</td>
+                <td>Aspecto visual final</td>
+              </tr>
+              <tr>
+                <td><strong>Tiempo</strong></td>
+                <td>Rápido</td>
+                <td>Más detallado</td>
+              </tr>
+              <tr>
+                <td><strong>Enfoque</strong></td>
+                <td>Funcionalidad</td>
+                <td>Diseño y estética</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>Implementación en Figma</h3>
+
+          <h4>1. Partir del Wireframe</h4>
+          <p>Duplica tu wireframe y empieza a añadir:</p>
+          <ul>
+            <li>Colores del Design System</li>
+            <li>Tipografías finales</li>
+            <li>Componentes visuales</li>
+          </ul>
+
+          <h4>2. Aplicar Design System</h4>
+          <p>Si ya tienes un Design System creado:</p>
+          <ul>
+            <li>Usa los <strong>componentes</strong> definidos</li>
+            <li>Aplica los <strong>color styles</strong></li>
+            <li>Utiliza los <strong>text styles</strong></li>
+            <li>Incorpora los <strong>effect styles</strong> (sombras)</li>
+          </ul>
+
+          <h4>3. Añadir Contenido Visual</h4>
+          <div class="success-box">
+            <strong>Imágenes:</strong><br />
+            • Unsplash Plugin para fotos stock<br />
+            • Storyset para ilustraciones<br />
+            • Iconify para iconos<br /><br />
+
+            <strong>Recursos:</strong><br />
+            • Elementos UI de librerías<br />
+            • Componentes de comunidad de Figma<br />
+            • Assets propios del proyecto
+          </div>
+
+          <h4>4. Detalles Finales</h4>
+          <div class="code-block">
+            ✨ Sombras y efectos: Drop shadow: 0 2px 8px rgba(0,0,0,0.1) ✨
+            Espaciados consistentes: • Usa múltiplos de 8px (sistema 8-point) •
+            Auto Layout con spacing definido ✨ Estados interactivos: • Hover
+            effects • Active states • Disabled states
+          </div>
+
+          <h3>Consideraciones Importantes</h3>
+
+          <div class="warning-box">
+            <strong>⚠️ Mockup NO es Prototipo</strong><br /><br />
+            <strong>❌ El mockup es estático</strong><br />
+            <strong>✅ El prototipo es interactivo</strong><br /><br />
+            Un mockup muestra el aspecto visual, pero no la funcionalidad. Para
+            testear interacciones necesitamos un prototipo.
+          </div>
+
+          <div class="info-box">
+            <strong>💡 Algunos autores no usan Mockups</strong><br /><br />
+            Algunos diseñadores prefieren:<br />
+            • Ir directo de <strong>wireframe a prototipo</strong> en blanco y
+            negro<br />
+            • Separar totalmente la <strong>guía de estilos</strong> de las
+            maquetas<br />
+            • Trabajar con <strong>componentes</strong> desde el principio<br /><br />
+            <strong>La decisión es del diseñador o el equipo</strong>, según
+            metodología, expectativas del cliente, tiempo disponible y
+            complejidad del proyecto.
+          </div>
+        </section>
+
+        <!-- PROTOTIPOS -->
+        <section id="prototipos">
+          <h2>🖱️ Prototipos Interactivos</h2>
+
+          <h3>Definición</h3>
+          <div class="info-box">
+            Un <strong>prototipo</strong> es una representación limitada de un
+            sitio web que permite a las partes (clientes y desarrolladores)
+            <strong>explorar y probar su uso de manera interactiva</strong>.
+          </div>
+
+          <h3>Características Principales</h3>
+          <div class="feature-grid">
+            <div class="feature-card">
+              <h4>🖱️ Navegables</h4>
+              <p>Se puede hacer clic y navegar</p>
+            </div>
+            <div class="feature-card">
+              <h4>🧪 Testables</h4>
+              <p>Permiten pruebas de usabilidad</p>
+            </div>
+            <div class="feature-card">
+              <h4>🎯 Evalúan UX</h4>
+              <p>Identifican problemas de experiencia</p>
+            </div>
+            <div class="feature-card">
+              <h4>🤝 Involucran</h4>
+              <p>Cliente ve y "usa" el producto</p>
+            </div>
+          </div>
+
+          <h3>Tipos de Prototipos</h3>
+
+          <h4>1. Prototipo de Baja Fidelidad</h4>
+          <div class="info-box">
+            <strong>Base:</strong> Wireframes en blanco y negro<br /><br />
+            <strong>Características:</strong><br />
+            • Interacciones básicas<br />
+            • Sin animaciones complejas<br />
+            • Enfocado en flujo y estructura<br />
+            • Rápido de crear y modificar<br /><br />
+            <strong>Cuándo usar:</strong><br />
+            • Fases tempranas del proyecto<br />
+            • Validar estructura y flujo<br />
+            • Testing rápido de conceptos
+          </div>
+
+          <h4>2. Prototipo de Alta Fidelidad</h4>
+          <div class="success-box">
+            <strong>Base:</strong> Mockups con diseño completo<br /><br />
+            <strong>Características:</strong><br />
+            • Interacciones complejas<br />
+            • Animaciones y transiciones<br />
+            • Micro-interacciones<br />
+            • Aspecto casi final<br /><br />
+            <strong>Cuándo usar:</strong><br />
+            • Fases finales antes de desarrollo<br />
+            • Presentaciones a stakeholders<br />
+            • Testing exhaustivo de UX<br />
+            • Documentación para desarrolladores
+          </div>
+
+          <h3>Implementación en Figma - Modo Prototype</h3>
+
+          <h4>Crear Conexiones</h4>
+          <ol>
+            <li>Selecciona un frame con el diseño</li>
+            <li>Cambia al panel <strong>Prototype</strong> (panel derecho)</li>
+            <li>Click en el elemento interactivo (botón, link)</li>
+            <li>Arrastra el círculo azul hasta el frame destino</li>
+            <li>Se crea una flecha de conexión</li>
+          </ol>
+
+          <h4>Configurar la Interacción</h4>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Opciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Trigger (Disparador)</strong></td>
+                <td>
+                  On Click, On Hover, On Drag, On Key, After Delay, Mouse
+                  Enter/Leave
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Action (Acción)</strong></td>
+                <td>
+                  Navigate to, Open overlay, Swap with, Back, Close overlay,
+                  Open URL
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Animation</strong></td>
+                <td>
+                  Instant, Dissolve, Smart Animate, Move In/Out, Push, Slide
+                  In/Out
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Easing</strong></td>
+                <td>Linear, Ease In/Out, Custom cubic-bezier</td>
+              </tr>
+              <tr>
+                <td><strong>Duration</strong></td>
+                <td>300ms (rápido), 500ms (estándar), 800ms (lento)</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h4>Smart Animate</h4>
+          <div class="info-box">
+            La función <strong>Smart Animate</strong> de Figma es muy
+            potente:<br /><br />
+            <strong>Funcionamiento:</strong><br />
+            • Detecta elementos similares entre frames<br />
+            • Anima automáticamente posición, tamaño, rotación<br />
+            • Crea transiciones fluidas<br /><br />
+            <strong>Requisitos:</strong><br />
+            • Elementos deben tener el <strong>mismo nombre</strong> en ambos
+            frames<br />
+            • Funciona con capas y componentes
+          </div>
+
+          <div class="code-block">
+            Ejemplo de Smart Animate: Frame 1: Rectangle "box" x: 0, y: 0,
+            width: 100 Frame 2: Rectangle "box" x: 200, y: 100, width: 200 →
+            Smart Animate los transforma fluidamente
+          </div>
+
+          <h4>Overlays (Modales)</h4>
+          <p>Para crear popups y modales:</p>
+          <ol>
+            <li>Crea el frame del modal</li>
+            <li>En la conexión, selecciona <strong>Open overlay</strong></li>
+            <li>
+              Configura:
+              <ul>
+                <li><strong>Position:</strong> Center, Top, Bottom, Manual</li>
+                <li><strong>Background:</strong> Dimmed o None</li>
+                <li><strong>Close when clicking outside:</strong> Yes/No</li>
+              </ul>
+            </li>
+          </ol>
+
+          <h4>Scroll</h4>
+          <p>Para áreas scrollables:</p>
+          <ol>
+            <li><strong>Contenedor:</strong> Frame padre con tamaño fijo</li>
+            <li><strong>Contenido:</strong> Frame hijo más grande</li>
+            <li>
+              <strong>Configurar:</strong>
+              <ul>
+                <li>Clip content: ✓</li>
+                <li>
+                  Prototipo → Overflow behavior: Vertical/Horizontal scrolling
+                </li>
+              </ul>
+            </li>
+          </ol>
+
+          <h3>Testear el Prototipo</h3>
+
+          <h4>Modo Presentación</h4>
+          <ul>
+            <li><strong>Play button</strong> (▶️) esquina superior derecha</li>
+            <li><strong>O presiona:</strong> Shift + Spacebar</li>
+            <li><strong>Navega:</strong> Como lo haría un usuario</li>
+          </ul>
+
+          <h4>Compartir para Testing</h4>
+          <ol>
+            <li>
+              <strong>Share button</strong> → Presentación en prototype mode
+            </li>
+            <li><strong>Copy link</strong></li>
+            <li>
+              <strong>Configuración:</strong>
+              <ul>
+                <li>Anyone with link / Specific people</li>
+                <li>Can view prototype</li>
+                <li>Show hotspot hints: Yes/No</li>
+                <li>Starting frame</li>
+              </ul>
+            </li>
+          </ol>
+
+          <h3>Herramientas para Prototipos</h3>
+
+          <div class="resources-list">
+            <strong>Todo-en-uno:</strong><br />
+            • <span class="stars">⭐</span> Figma (recomendada)<br />
+            • Adobe XD<br />
+            • Sketch + InVision<br /><br />
+
+            <strong>Especializadas:</strong><br />
+            • Proto.io - Prototipos mobile<br />
+            • Principle (Mac) - Animaciones<br />
+            • Framer - Prototipos con código<br />
+            • ProtoPie - Interacciones avanzadas<br /><br />
+
+            <strong>Online simples:</strong><br />
+            • InVision<br />
+            • Marvel App<br />
+            • Overflow
+          </div>
+
+          <h3>Ventajas de los Prototipos</h3>
+
+          <div class="feature-grid">
+            <div class="feature-card">
+              <h4>Para el Equipo</h4>
+              <ul>
+                <li>Validación temprana de conceptos</li>
+                <li>Comunicación clara con desarrolladores</li>
+                <li>Documentación de interacciones</li>
+                <li>Detección de errores de UX</li>
+              </ul>
+            </div>
+            <div class="feature-card">
+              <h4>Para el Cliente</h4>
+              <ul>
+                <li>Visualización real del producto</li>
+                <li>Participación activa en el proceso</li>
+                <li>Feedback directo sobre usabilidad</li>
+                <li>Confianza en la dirección del proyecto</li>
+              </ul>
+            </div>
+            <div class="feature-card">
+              <h4>Para el Usuario Final</h4>
+              <ul>
+                <li>Testing de usabilidad antes del lanzamiento</li>
+                <li>Producto mejor diseñado</li>
+                <li>Menos frustración en el producto final</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- PLANTILLAS -->
+        <section id="plantillas">
+          <h2>📄 Plantillas de Diseño</h2>
+
+          <h3>Definición</h3>
+          <div class="info-box">
+            Una <strong>plantilla web</strong> es un conjunto de documentos web
+            prediseñados que se pueden utilizar para insertar contenido e
+            imágenes y así desarrollar la interfaz del sitio web.
+          </div>
+
+          <h3>Ventajas y Desventajas</h3>
+
+          <div class="feature-grid">
+            <div class="feature-card">
+              <h4>✅ Ventajas</h4>
+              <ul>
+                <li>Ahorro de tiempo considerable</li>
+                <li>Reducción de costes</li>
+                <li>Código probado y funcional</li>
+                <li>Responsive design</li>
+                <li>Compatibilidad navegadores</li>
+              </ul>
+            </div>
+            <div class="feature-card">
+              <h4>❌ Desventajas</h4>
+              <ul>
+                <li>Limitaciones de personalización</li>
+                <li>Código genérico</li>
+                <li>Menos exclusividad</li>
+                <li>Curva de aprendizaje</li>
+                <li>Problemas con actualizaciones</li>
+              </ul>
+            </div>
+          </div>
+
+          <h3>¿Cuándo usar plantillas?</h3>
+
+          <div class="success-box">
+            <strong>✅ Usar plantillas cuando:</strong><br /><br />
+            • Presupuesto limitado<br />
+            • Tiempo de entrega ajustado<br />
+            • Proyecto pequeño o mediano<br />
+            • Cliente valora funcionalidad sobre diseño único<br />
+            • Prototipo o MVP (Minimum Viable Product)<br />
+            • Sitio web estándar (blog, portfolio, landing page)
+          </div>
+
+          <div class="danger-box">
+            <strong>❌ NO usar plantillas cuando:</strong><br /><br />
+            • Brand muy específico que requiere diseño único<br />
+            • Funcionalidades muy específicas o complejas<br />
+            • Cliente paga por diseño custom exclusivo<br />
+            • Proyecto de gran escala empresarial<br />
+            • Se requiere diferenciación competitiva fuerte
+          </div>
+
+          <h3>Estructura Típica de una Plantilla</h3>
+
+          <div class="code-block">
+            plantilla/ ├── index.html (Página principal) ├── about.html (Páginas
+            secundarias) ├── contact.html ├── assets/ (Recursos) │ ├── css/ │ │
+            ├── main.css │ │ └── responsive.css │ ├── js/ │ │ ├── main.js │ │
+            └── plugins.js │ ├── images/ │ │ ├── hero.jpg │ │ ├── logo.png │ │
+            └── ... │ ├── fonts/ │ └── icons/ ├── LICENSE.txt (Licencia de uso)
+            └── README.md (Instrucciones)
+          </div>
+
+          <h3>Proceso de Personalización</h3>
+
+          <h4>1. Localizar Archivos</h4>
+          <ul>
+            <li>
+              Identifica todos los archivos incluidos (HTML, CSS, JS, assets)
+            </li>
+            <li>Comprende la estructura de carpetas</li>
+            <li>Lee el README si existe</li>
+          </ul>
+
+          <h4>2. Examinar la Estructura</h4>
+          <ul>
+            <li>
+              Abre con un <strong>editor de código</strong> (VS Code, Sublime
+              Text)
+            </li>
+            <li>
+              Analiza el HTML (estructura semántica, clases e IDs, secciones a
+              modificar)
+            </li>
+            <li>
+              Revisa el CSS (variables, clases principales, media queries)
+            </li>
+            <li>Usa el <strong>inspector del navegador</strong> (F12)</li>
+          </ul>
+
+          <h4>3. Editar Contenido de Texto</h4>
+          <div class="code-block">
+            &lt;!-- Antes --&gt; &lt;h1&gt;Amazing Business Template&lt;/h1&gt;
+            &lt;p&gt;This is a sample template for your business&lt;/p&gt;
+            &lt;!-- Después --&gt; &lt;h1&gt;Mi Empresa de Software&lt;/h1&gt;
+            &lt;p&gt;Desarrollamos soluciones tecnológicas innovadoras&lt;/p&gt;
+          </div>
+
+          <h4>4. Personalizar Imágenes</h4>
+          <div class="warning-box">
+            <strong>⚠️ Importante:</strong> Mantener el
+            <strong>mismo tamaño</strong> que las imágenes originales para no
+            romper el diseño.
+          </div>
+
+          <p><strong>Proceso:</strong></p>
+          <ol>
+            <li>Identifica las dimensiones de la imagen original</li>
+            <li>Prepara tu imagen en el mismo tamaño</li>
+            <li>Usa el mismo nombre de archivo (o actualiza el HTML/CSS)</li>
+          </ol>
+
+          <h4>5. Quitar Elementos No Deseados</h4>
+          <div class="danger-box">
+            <strong>⚠️ ¡Con cuidado!</strong> Eliminar código puede romper
+            funcionalidades.<br /><br />
+            <strong>Proceso seguro:</strong><br />
+            1. <strong>Comenta el código</strong> primero en lugar de
+            eliminarlo<br />
+            2. Prueba que todo funciona<br />
+            3. Si está OK, elimina definitivamente
+          </div>
+
+          <div class="code-block">
+            &lt;!-- Comentar HTML --&gt; &lt;!-- &lt;section
+            class="testimonials"&gt; ...contenido no deseado... &lt;/section&gt;
+            --&gt; /* Comentar CSS */ /* .testimonials { display: flex; ... } */
+          </div>
+
+          <h4>6. Modificar CSS</h4>
+          <div class="info-box">
+            Aunque <strong>no es recomendable</strong> modificar mucho las CSS
+            (puede romper responsive), hay cambios seguros.
+          </div>
+
+          <p><strong>Cambios seguros:</strong></p>
+          <div class="code-block">
+            /* Colores */ :root { --primary-color: #3498db; /* Azul original */
+            --secondary-color: #2ecc71; /* Verde original */ } /* Cambiar a tus
+            colores */ :root { --primary-color: #FF6B6B; /* Tu rojo */
+            --secondary-color: #4ECDC4; /* Tu turquesa */ } /* Tipografía */
+            body { font-family: 'Open Sans', sans-serif; } /* Cambiar a */ body
+            { font-family: 'Poppins', sans-serif; }
+          </div>
+
+          <p><strong>Cambios riesgosos:</strong></p>
+          <ul>
+            <li>Modificar el grid system</li>
+            <li>Cambiar media queries sin testing</li>
+            <li>Alterar z-index sin entender la estructura</li>
+            <li>Modificar positioning (relative, absolute, fixed)</li>
+          </ul>
+
+          <h3>Recursos de Plantillas Gratuitas y Premium</h3>
+
+          <h4>Plantillas HTML5 Gratuitas</h4>
+          <div class="resources-list">
+            <strong>HTML5 UP</strong> <span class="stars">⭐</span><br />
+            • URL:
+            <a href="https://html5up.net/" target="_blank"
+              >https://html5up.net/</a
+            ><br />
+            • Características: Responsive, modernas, bien codificadas<br />
+            • Licencia: Creative Commons (con atribución)<br /><br />
+
+            <strong>Templated</strong><br />
+            • URL:
+            <a href="https://templated.co/" target="_blank"
+              >https://templated.co/</a
+            ><br />
+            • Características: Minimalistas, limpias<br />
+            • Licencia: Creative Commons<br /><br />
+
+            <strong>ZeroTheme</strong><br />
+            • URL:
+            <a href="https://www.zerotheme.com/" target="_blank"
+              >https://www.zerotheme.com/</a
+            ><br />
+            • Características: Gran variedad, gratis y premium
+          </div>
+
+          <h4>Plantillas Bootstrap</h4>
+          <div class="resources-list">
+            <strong>Start Bootstrap</strong> <span class="stars">⭐</span><br />
+            • URL:
+            <a href="https://startbootstrap.com/" target="_blank"
+              >https://startbootstrap.com/</a
+            ><br />
+            • Características: Basadas en Bootstrap 5<br />
+            • Temas gratuitos y premium<br /><br />
+
+            <strong>WrapBootstrap</strong><br />
+            • URL:
+            <a href="https://wrapbootstrap.com/" target="_blank"
+              >https://wrapbootstrap.com/</a
+            ><br />
+            • Características: Marketplace de temas Bootstrap<br />
+            • Mayormente premium (de pago)<br /><br />
+
+            <strong>ThemesSEO</strong><br />
+            • URL:
+            <a href="http://themesseo.com/cat/bootstrap" target="_blank"
+              >http://themesseo.com/cat/bootstrap</a
+            ><br />
+            • Características: Optimizadas para SEO
+          </div>
+
+          <h3>Licencias y Uso Legal</h3>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Tipo de Licencia</th>
+                <th>Características</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>CC0</strong></td>
+                <td>Dominio público, sin restricciones</td>
+              </tr>
+              <tr>
+                <td><strong>CC BY</strong></td>
+                <td>Requiere atribución al autor</td>
+              </tr>
+              <tr>
+                <td><strong>CC BY-NC</strong></td>
+                <td>Atribución + No comercial</td>
+              </tr>
+              <tr>
+                <td><strong>GPL</strong></td>
+                <td>Común en WordPress, puedes modificar y redistribuir</td>
+              </tr>
+              <tr>
+                <td><strong>MIT License</strong></td>
+                <td>Muy permisiva, permite uso comercial</td>
+              </tr>
+              <tr>
+                <td><strong>Propietarias</strong></td>
+                <td>Solo el comprador puede usar, no redistribuir</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="warning-box">
+            <strong>⚠️ Importante:</strong> Siempre lee la licencia antes de
+            usar una plantilla comercialmente.
+          </div>
+
+          <h3>De Plantilla a Proyecto Custom</h3>
+
+          <h4>Flujo de Trabajo Recomendado</h4>
+          <ol>
+            <li>
+              <strong>Analizar la plantilla en Figma PRIMERO</strong>
+              <ul>
+                <li>Importa capturas de pantalla</li>
+                <li>Marca áreas a personalizar</li>
+                <li>Diseña los cambios visualmente</li>
+              </ul>
+            </li>
+            <li>
+              <strong>Crear un Design System de tu marca</strong>
+              <ul>
+                <li>Colores</li>
+                <li>Tipografías</li>
+                <li>Componentes</li>
+              </ul>
+            </li>
+            <li>
+              <strong>Aplicar cambios en código</strong>
+              <ul>
+                <li>Siguiendo el diseño de Figma</li>
+                <li>Testing constante</li>
+              </ul>
+            </li>
+            <li>
+              <strong>Optimizar</strong>
+              <ul>
+                <li>Eliminar código no usado</li>
+                <li>Minificar CSS/JS</li>
+                <li>Optimizar imágenes</li>
+              </ul>
+            </li>
+          </ol>
+
+          <div class="success-box">
+            <strong>💡 Ventajas de Diseñar en Figma Antes</strong><br /><br />
+            Incluso si vas a usar una plantilla,
+            <strong>diseñar en Figma primero</strong> tiene ventajas:<br /><br />
+            ✅ Visualización clara de cambios antes de codificar<br />
+            ✅ Aprobación del cliente antes de tocar código<br />
+            ✅ Mejor planificación de personalizaciones<br />
+            ✅ Documentación visual para desarrollo<br />
+            ✅ Consistencia en los cambios aplicados
+          </div>
+        </section>
+
+        <!-- CONCLUSIONES -->
+        <section id="conclusiones">
+          <h2>🎯 Conclusiones y Buenas Prácticas</h2>
+
+          <h3>Resumen del Proceso Completo</h3>
+
+          <div class="diagram-box">
+            1. KICK-OFF CON CLIENTE └─> Reunión, brief, requisitos 2. SKETCH
+            (Bocetos) └─> Papel, ideas rápidas, múltiples opciones 3. WIREFRAME
+            (Estructura) └─> Figma, escala de grises, layout definido 4. MOCKUP
+            (Diseño visual) └─> Figma, colores, tipografías, imágenes 5.
+            PROTOTIPO (Interactividad) └─> Figma prototype mode, testing 6.
+            DESARROLLO └─> Código (puede usar plantilla) 7. TESTING Y AJUSTES
+            └─> QA, correcciones 8. LANZAMIENTO └─> Deploy, monitoreo
+          </div>
+
+          <h3>Adaptación según el Proyecto</h3>
+
+          <div class="feature-grid">
+            <div class="feature-card">
+              <h4>Proyecto Pequeño / Landing Page</h4>
+              <div class="code-block">
+                SKETCH → MOCKUP → PLANTILLA HTML5 (Rápido, económico)
+              </div>
+            </div>
+            <div class="feature-card">
+              <h4>Proyecto Mediano / Sitio Corporativo</h4>
+              <div class="code-block">
+                WIREFRAME → MOCKUP → PROTOTIPO → DESARROLLO (Proceso completo)
+              </div>
+            </div>
+            <div class="feature-card">
+              <h4>Proyecto Grande / Plataforma Web</h4>
+              <div class="code-block">
+                RESEARCH → SKETCHES → WIREFRAMES → DESIGN SYSTEM → MOCKUPS →
+                PROTOTIPOS → DESARROLLO ITERATIVO (Proceso exhaustivo)
+              </div>
+            </div>
+          </div>
+
+          <h3>Errores Comunes a Evitar</h3>
+
+          <div class="danger-box">
+            <strong>❌ Saltar la fase de wireframe</strong> - Ir directo a
+            mockup con colores puede ser problemático<br /><br />
+            <strong>❌ No testear el prototipo</strong> con usuarios -
+            Desperdicias su mayor ventaja<br /><br />
+            <strong>❌ Modificar plantillas sin entenderlas</strong> - Puede
+            romper funcionalidades<br /><br />
+            <strong>❌ No documentar decisiones</strong> - Dificulta
+            mantenimiento futuro<br /><br />
+            <strong>❌ Ignorar responsive</strong> - Diseñar solo para desktop
+            es un error crítico<br /><br />
+            <strong>❌ No involucrar al cliente</strong> en el proceso -
+            Sorpresas al final = problemas
+          </div>
+
+          <h3>Checklist Final</h3>
+
+          <h4>✅ Sketch → Wireframe</h4>
+          <ul class="checklist">
+            <li>Cliente aprobó la estructura general</li>
+            <li>Definidas todas las páginas principales</li>
+            <li>Clarificados los flujos de usuario</li>
+          </ul>
+
+          <h4>✅ Wireframe → Mockup</h4>
+          <ul class="checklist">
+            <li>Layout validado y aprobado</li>
+            <li>Jerarquía de contenidos clara</li>
+            <li>Design System listo para aplicar</li>
+          </ul>
+
+          <h4>✅ Mockup → Prototipo</h4>
+          <ul class="checklist">
+            <li>Diseño visual aprobado</li>
+            <li>Todos los assets preparados</li>
+            <li>Estados interactivos definidos</li>
+          </ul>
+
+          <h4>✅ Prototipo → Desarrollo</h4>
+          <ul class="checklist">
+            <li>Testing de UX completado</li>
+            <li>Feedback incorporado</li>
+            <li>Documentación para devs lista</li>
+          </ul>
+
+          <h3>Herramientas Recomendadas (Stack Completo)</h3>
+
+          <div class="feature-grid">
+            <div class="feature-card">
+              <h4>Diseño</h4>
+              <ul>
+                <li><strong>Figma</strong> - Todo el proceso de diseño</li>
+                <li><strong>FigJam</strong> - Brainstorming y mapas</li>
+              </ul>
+            </div>
+            <div class="feature-card">
+              <h4>Assets</h4>
+              <ul>
+                <li><strong>Unsplash/Pexels</strong> - Fotos stock</li>
+                <li><strong>Icons8/IconScout</strong> - Iconos</li>
+                <li><strong>Google Fonts</strong> - Tipografías</li>
+              </ul>
+            </div>
+            <div class="feature-card">
+              <h4>Prototipado Avanzado</h4>
+              <ul>
+                <li><strong>Principle</strong> - Animaciones micro</li>
+                <li><strong>ProtoPie</strong> - Interacciones complejas</li>
+              </ul>
+            </div>
+            <div class="feature-card">
+              <h4>Plantillas</h4>
+              <ul>
+                <li><strong>HTML5 UP</strong> - HTML templates</li>
+                <li><strong>Start Bootstrap</strong> - Bootstrap themes</li>
+              </ul>
+            </div>
+            <div class="feature-card">
+              <h4>Testing</h4>
+              <ul>
+                <li><strong>Maze</strong> - Testing cuantitativo</li>
+                <li><strong>Hotjar</strong> - Heatmaps y recordings</li>
+              </ul>
+            </div>
+          </div>
+
+          <h3>📚 Ejercicios Prácticos</h3>
+
+          <div class="info-box">
+            <strong>Ejercicio 1: Del Sketch al Mockup</strong><br />
+            Elige un tipo de web (e-commerce, blog, portfolio) y:<br />
+            1. Crea 3 sketches diferentes en papel<br />
+            2. Elige uno y conviértelo en wireframe en Figma<br />
+            3. Transforma ese wireframe en mockup completo
+          </div>
+
+          <div class="info-box">
+            <strong>Ejercicio 2: Prototipo Interactivo</strong><br />
+            Toma el mockup del ejercicio 1 y:<br />
+            1. Crea al menos 5 pantallas conectadas<br />
+            2. Añade 3 tipos de interacciones diferentes<br />
+            3. Incluye al menos un overlay/modal<br />
+            4. Testea con 3 personas y recoge feedback
+          </div>
+
+          <div class="info-box">
+            <strong>Ejercicio 3: Personalización de Plantilla</strong><br />
+            1. Descarga una plantilla de HTML5 UP<br />
+            2. Analiza su estructura (HTML, CSS, JS)<br />
+            3. Personalízala para un negocio ficticio<br />
+            4. Documenta los cambios realizados
+          </div>
+
+          <div class="success-box">
+            <strong>💡 Recuerda:</strong> El proceso de diseño es iterativo. No
+            tengas miedo de volver atrás y ajustar según el feedback. La
+            flexibilidad es clave para un buen resultado final.
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <p>
+          <strong>📚 Documentación de referencia:</strong> IES HLanz - 2º DAW -
+          Diseño de Interfaces Web - Parte II
+        </p>
+        <p><strong>Última actualización:</strong> 2025</p>
+      </footer>
+    </div>
+
+    <script>
+      // Asegurar que los enlaces de navegación funcionen correctamente
+      document.querySelectorAll("nav a[data-target]").forEach((anchor) => {
+        anchor.addEventListener("click", function (e) {
+          e.preventDefault();
+          const targetId = this.getAttribute("data-target");
+          const target = document.getElementById(targetId);
+          if (target) {
+            target.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          }
+        });
+      });
+    </script>
+<!-- DIWEB Bottom Nav -->
+<div style="height:64px"></div>
+<style>
+#diweb-bnav{position:fixed;bottom:0;left:0;right:0;height:56px;background:rgba(255,255,255,0.97);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;padding:0 1rem;z-index:99999;font-family:'Inter',system-ui,sans-serif;box-shadow:0 -4px 20px rgba(0,0,0,0.07);gap:8px;}#diweb-bnav a{display:inline-flex;align-items:center;gap:5px;font-size:0.78rem;font-weight:600;text-decoration:none;padding:7px 14px;border-radius:9px;transition:all 0.15s;white-space:nowrap;}.dbnav-prev{color:#475569;background:#f1f5f9;}.dbnav-prev:hover{background:#e2e8f0;color:#1e293b;}.dbnav-idx{color:#2563eb;background:#eff6ff;}.dbnav-idx:hover{background:#dbeafe;}.dbnav-next{color:#fff;background:#2563eb;}.dbnav-next:hover{background:#1d4ed8;}.dbnav-disabled{opacity:0.35;pointer-events:none;}.dbnav-center{display:flex;flex-direction:column;align-items:center;gap:2px;}.dbnav-label{color:#94a3b8;font-size:0.65rem;font-weight:500;font-family:'Inter',system-ui,sans-serif;}@media(max-width:480px){.dbnav-label{display:none;}}
+</style>
+<nav id="diweb-bnav">
+  <a href="sistema_iconografia.html" class="dbnav-prev">← Iconografía</a>
+  <div class="dbnav-center">
+    <span class="dbnav-label">6 / 8</span>
+    <a href="index.html" class="dbnav-idx">↑ UD1</a>
+  </div>
+  <a href="guia_figma.html" class="dbnav-next">Colaboración en Figma →</a>
+</nav>
+<!-- /DIWEB Bottom Nav -->
+  </body>
+</html>

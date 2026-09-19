@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demostración: Letras Rojas sobre Fondo Azul</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+</head>
+<body class="bg-transparent text-[var(--foreground)] antialiased p-3 sm:p-4">
+  <div class="bg-[var(--card)] text-[var(--foreground)] border border-[var(--border)] rounded-2xl p-5 shadow-lg max-w-2xl mx-auto">
+    
+    <!-- Encabezado -->
+    <div class="flex items-center justify-between border-b border-[var(--border)] pb-3 mb-4">
+      <div>
+        <span class="text-xs uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-rose-500/10 text-rose-500">
+          UD1 • Actividad 3
+        </span>
+        <h2 class="text-xl font-bold mt-1 text-[var(--foreground)]">Fenómeno de Cromostereopsis</h2>
+      </div>
+      <div class="text-right">
+        <span class="text-xs px-2.5 py-1 rounded-full font-semibold bg-red-500/15 text-red-500 border border-red-500/30">
+          WCAG 2.2: ❌ Suspenso (2.14:1)
+        </span>
+      </div>
+    </div>
+
+    <p class="text-xs sm:text-sm text-[var(--muted-foreground)] mb-4 leading-relaxed">
+      Mira fijamente el texto inferior durante 5 segundos. Notarás que las letras rojas parecen <strong>vibrar, flotar o desenfocarse</strong>. Esto ocurre porque el cristalino del ojo no puede enfocar a la vez la onda larga del rojo y la onda corta del azul.
+    </p>
+
+    <!-- Caja de Demostración del Problema -->
+    <div id="demo-box" class="rounded-xl p-6 sm:p-8 text-center transition-all duration-300 shadow-inner my-4" style="background-color: #0000ff;">
+      <h3 id="demo-title" class="text-2xl sm:text-3xl font-black tracking-wide" style="color: #ff0000; text-shadow: 0 0 1px rgba(255,0,0,0.5);">
+        TEXTO ROJO PURO
+      </h3>
+      <p id="demo-text" class="text-base sm:text-lg font-bold mt-2" style="color: #ff2222;">
+        ¿Sientes cómo vibra en tu retina al intentar leerlo?
+      </p>
+      <div class="mt-4 inline-block px-4 py-2 rounded-lg font-bold text-sm" style="background-color: #ff0000; color: #0000ff;">
+        BOTÓN INVERSO (AZUL SOBRE ROJO)
+      </div>
+    </div>
+
+    <!-- Comparativa: Solución Accesible -->
+    <div class="mt-6 border-t border-[var(--border)] pt-4">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-sm font-semibold text-[var(--foreground)]">Alternativa Accesible y Corregida:</span>
+        <span class="text-xs px-2 py-0.5 rounded-full font-semibold bg-emerald-500/15 text-emerald-600 border border-emerald-500/30">
+          WCAG AAA: ✅ 8.9:1
+        </span>
+      </div>
+      <div class="rounded-xl p-4 text-center" style="background-color: #0b192c;">
+        <h4 class="text-lg font-bold" style="color: #ffffff;">
+          Azul Marino Profundo + Tipografía Blanca
+        </h4>
+        <p class="text-xs mt-1" style="color: #94a3b8;">
+          Lectura relajada sin vibración óptica ni fatiga ocular.
+        </p>
+        <div class="mt-3 inline-block px-4 py-1.5 rounded-md font-semibold text-xs shadow" style="background-color: #e11d48; color: #ffffff;">
+          Acento Rosa/Rojo como Botón sobre Neutro
+        </div>
+      </div>
+    </div>
+
+    <!-- Explicación Técnica Resumida -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 pt-2">
+      <div class="bg-[var(--background)] p-3 rounded-lg border border-[var(--border)] text-xs">
+        <strong class="text-rose-500 block mb-1">🔴 Longitud de Onda Roja (~700 nm)</strong>
+        Se refracta menos en el ojo y se proyecta más atrás en la retina. El cerebro la percibe como si estuviera más cerca.
+      </div>
+      <div class="bg-[var(--background)] p-3 rounded-lg border border-[var(--border)] text-xs">
+        <strong class="text-blue-500 block mb-1">🔵 Longitud de Onda Azul (~450 nm)</strong>
+        Se refracta más y se proyecta antes en la retina. El cerebro la percibe como si estuviera más lejos.
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
