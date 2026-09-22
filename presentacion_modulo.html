@@ -4,145 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bienvenida al Módulo: Diseño de Interfaces Web (DIWEB)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-            min-height: 100vh;
-        }
-        .active-card {
-            border-color: #2563eb !important;
-            background-color: #eff6ff !important;
-            box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.25);
-            transform: translateY(-2px);
-        }
-        .unit-card {
-            transition: all 0.2s ease-in-out;
-        }
-    </style>
+    <script>document.documentElement.classList.add("site")</script>
+    <link rel="stylesheet" href="assets/site.css">
 </head>
-<body class="text-slate-800 antialiased pt-16 px-4 pb-8 md:pt-16 md:px-8">
-
-<!-- DIWEB Topbar -->
-<style>
-#diweb-nav{position:fixed;top:0;left:0;right:0;height:52px;background:rgba(15,23,42,0.97);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:space-between;padding:0 1.25rem;z-index:99999;font-family:'Inter',system-ui,sans-serif;box-shadow:0 1px 0 rgba(255,255,255,0.07),0 2px 20px rgba(0,0,0,0.35);}#diweb-nav a{text-decoration:none;}.dnav-brand{display:flex;align-items:center;gap:8px;flex-shrink:0;}.dnav-logo{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;letter-spacing:-0.5px;flex-shrink:0;}.dnav-name{font-size:0.85rem;font-weight:700;color:#f1f5f9;}.dnav-crumb{display:flex;align-items:center;gap:5px;font-size:0.72rem;color:#64748b;flex:1;justify-content:center;overflow:hidden;padding:0 0.5rem;}.dnav-crumb a{color:#64748b;}.dnav-crumb a:hover{color:#cbd5e1;}.dnav-sep{color:#334155;}.dnav-cur{color:#cbd5e1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;}.dnav-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}.dnav-gh{display:flex;align-items:center;gap:5px;color:#64748b;font-size:0.72rem;font-weight:500;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,0.05);transition:all 0.15s;}.dnav-gh:hover{color:#f1f5f9;background:rgba(255,255,255,0.1);}.dnav-gh svg{width:14px;height:14px;fill:currentColor;flex-shrink:0;}@media(max-width:480px){.dnav-gh span{display:none;}.dnav-crumb .dnav-cur{max-width:100px;}}
-</style>
-<nav id="diweb-nav">
-  <a href="index.html" class="dnav-brand">
-    <div class="dnav-logo">D</div>
-    <span class="dnav-name">DIWEB</span>
-  </a>
-  <div class="dnav-crumb">
-    <a href="index.html">Inicio</a><span class="dnav-sep">›</span><span class="dnav-cur">Presentación del Módulo</span>
-  </div>
-  <div class="dnav-actions">
-    <a href="https://github.com/hljagonzalez/APUNTES-DIWEB-CURSO-26-27" target="_blank" class="dnav-gh">
-      <svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-      <span>GitHub</span>
-    </a>
-  </div>
-</nav>
-<div style="height:52px"></div>
-<!-- /DIWEB Topbar -->
-
-
-    <main class="max-w-5xl mx-auto">
-        <!-- Header -->
-        <header class="text-center mb-12">
-            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold mb-3 tracking-wide uppercase">
-                2º DAW • Curso 2026/2027
-            </div>
-            <h1 class="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-3">
-                Diseño de Interfaces Web
-            </h1>
-            <p class="text-lg md:text-xl text-slate-600 font-medium">
-                Un curso impartido por <span class="text-blue-600 font-semibold">Julio Ángel González García</span>
-            </p>
+<body>
+    <main class="page">
+        <header class="mast">
+            <p class="kicker">2º DAW · Curso 2026/2027</p>
+            <h1>Diseño de Interfaces Web</h1>
+            <p class="byline">Un curso impartido por <strong>Julio Ángel González García</strong></p>
         </header>
 
-        <!-- Bienvenida -->
-        <section id="welcome" class="mb-12 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8 text-center max-w-4xl mx-auto">
-            <h2 class="text-2xl md:text-3xl font-bold text-slate-900 mb-4">¡Te damos la bienvenida!</h2>
-            <p class="text-base md:text-lg text-slate-700 leading-relaxed">
-                ¡Hola a todos! Estoy encantado de ser vuestro profesor. Este curso vamos a embarcarnos en un viaje para descubrir cómo se crean experiencias digitales que no solo son bonitas, sino también <strong>intuitivas</strong> y <strong>accesibles</strong> para todos los usuarios.
-            </p>
+        <section class="welcome" id="welcome">
+            <h2>¡Te damos la bienvenida!</h2>
+            <p>¡Hola a todos! Estoy encantado de ser vuestro profesor. Este curso vamos a embarcarnos en un viaje para descubrir cómo se crean experiencias digitales que no solo son bonitas, sino también <strong>intuitivas</strong> y <strong>accesibles</strong> para todos los usuarios.</p>
         </section>
 
-        <!-- Objetivos -->
-        <section id="objectives" class="mb-12">
-            <div class="grid md:grid-cols-2 gap-6">
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-center">
-                    <div class="text-4xl mb-3">🎯</div>
-                    <h3 class="text-xl font-bold text-slate-900 mb-2">Objetivo Principal</h3>
-                    <p class="text-slate-600 leading-relaxed">
-                        Al finalizar el curso, serás capaz de planificar, diseñar e implementar interfaces web completas, integrando usabilidad y accesibilidad universal.
-                    </p>
+        <section class="split" id="objectives">
+            <article class="objective">
+                <h3>Objetivo principal</h3>
+                <p>Al finalizar el curso, serás capaz de planificar, diseñar e implementar interfaces web completas, integrando usabilidad y accesibilidad universal.</p>
+            </article>
+            <article class="objective">
+                <h3>Construyendo sobre una base</h3>
+                <p>Tomaremos la base de HTML y CSS de primero como punto de partida para ir mucho más allá: maquetación moderna, accesibilidad real e interactividad.</p>
+            </article>
+        </section>
+
+        <section class="plan" id="curriculum">
+            <h2>Nuestro plan de viaje</h2>
+            <p class="section-note">Este es el recorrido que haremos juntos. Haz clic en cada unidad para conocer sus objetivos:</p>
+            <div id="units-nav" class="picks"></div>
+            <article class="detail" id="unit-details">
+                <div class="detail-icon" id="unit-icon" aria-hidden="true">✍️</div>
+                <div>
+                    <span class="badge" id="unit-badge">Unidad Didáctica 1</span>
+                    <h3 id="unit-title">UD1: Planificación de Interfaces Gráficas</h3>
+                    <p id="unit-description">Aprenderemos a pensar como diseñadores, creando bocetos y flujos de usuario antes de tocar una sola línea de código. Es la base para construir proyectos sólidos y centrados en el usuario.</p>
                 </div>
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-center">
-                    <div class="text-4xl mb-3">🚀</div>
-                    <h3 class="text-xl font-bold text-slate-900 mb-2">Construyendo sobre una base</h3>
-                    <p class="text-slate-600 leading-relaxed">
-                        Tomaremos la base de HTML y CSS de primero como punto de partida para ir mucho más allá: maquetación moderna, accesibilidad real e interactividad.
-                    </p>
-                </div>
-            </div>
+            </article>
         </section>
 
-        <!-- Plan de Viaje (Las 6 Unidades Didácticas) -->
-        <section id="curriculum" class="mb-12">
-            <div class="text-center mb-8">
-                <h2 class="text-2xl md:text-3xl font-bold text-slate-900 mb-2">Nuestro Plan de Viaje</h2>
-                <p class="text-slate-600">Este es el recorrido que haremos juntos. Haz clic en cada unidad para conocer sus objetivos:</p>
-            </div>
-
-            <!-- Botones de unidades -->
-            <div id="units-nav" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-                <!-- Se inyecta con JS -->
-            </div>
-
-            <!-- Detalle de unidad seleccionada -->
-            <div id="unit-details" class="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 md:p-8 transition-all duration-300">
-                <div class="flex flex-col md:flex-row items-center md:items-start gap-6">
-                    <div id="unit-icon" class="text-5xl md:text-6xl p-4 bg-blue-50 rounded-2xl border border-blue-100 flex-shrink-0">
-                        ✍️
-                    </div>
-                    <div class="flex-1 text-center md:text-left">
-                        <span id="unit-badge" class="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 mb-2">
-                            Unidad Didáctica 1
-                        </span>
-                        <h3 id="unit-title" class="text-2xl font-bold text-slate-900 mb-3">
-                            UD1: Planificación de Interfaces Gráficas
-                        </h3>
-                        <p id="unit-description" class="text-slate-600 text-base md:text-lg leading-relaxed">
-                            Aprenderemos a pensar como diseñadores, creando bocetos y flujos de usuario antes de tocar una sola línea de código. Es la base para construir proyectos sólidos y centrados en el usuario.
-                        </p>
-                    </div>
-                </div>
-            </div>
+        <section class="survey" id="next-steps">
+            <h2>¡Manos a la obra!</h2>
+            <p>Para que este viaje sea lo más productivo posible, me gustaría empezar conociéndonos un poco mejor. La siguiente encuesta me ayudará a entender vuestro nivel, expectativas y áreas de interés.</p>
+            <a class="btn" href="https://forms.gle/F17dSqFPrn9hga1aA" target="_blank" rel="noopener noreferrer">Completar la encuesta inicial</a>
         </section>
 
-        <!-- Encuesta inicial -->
-        <section id="next-steps" class="mb-12 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl shadow-xl p-8 md:p-10 text-center">
-            <div class="text-4xl mb-3">📋</div>
-            <h2 class="text-2xl md:text-3xl font-bold mb-3">¡Manos a la obra!</h2>
-            <p class="max-w-2xl mx-auto text-blue-100 text-base md:text-lg mb-6 leading-relaxed">
-                Para que este viaje sea lo más productivo posible, me gustaría empezar conociéndonos un poco mejor. La siguiente encuesta me ayudará a entender vuestro nivel, expectativas y áreas de interés.
-            </p>
-            <a href="https://forms.gle/F17dSqFPrn9hga1aA" target="_blank" rel="noopener noreferrer"
-               class="inline-flex items-center gap-2 bg-white text-blue-600 font-bold py-3.5 px-8 rounded-xl shadow-md hover:bg-blue-50 hover:shadow-lg transform hover:-translate-y-0.5 transition-all text-base">
-                <span>Completar la encuesta inicial</span>
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-            </a>
-        </section>
-
-        <!-- Footer -->
-        <footer class="text-center py-6 border-t border-slate-200 text-slate-500 text-sm">
+        <footer class="colophon">
             <p>© 2026/2027 Diseño de Interfaces Web (DIWEB) | IES Hermenegildo Lanz</p>
-            <p class="mt-1">Profesor: Julio Ángel González García</p>
+            <p>Profesor: Julio Ángel González García</p>
         </footer>
     </main>
 
@@ -206,24 +117,18 @@
 
         function renderNav() {
             nav.innerHTML = unidades.map((u, i) => `
-                <button data-id="${u.id}" class="unit-card text-left p-3.5 border-2 border-slate-200 rounded-xl bg-white hover:shadow-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400 ${i === 0 ? 'active-card' : ''}">
-                    <div class="flex items-center justify-between mb-1">
-                        <span class="text-blue-600 font-bold text-xs">${u.badge}</span>
-                        <span class="text-base">${u.icon}</span>
-                    </div>
-                    <h4 class="font-semibold text-slate-800 text-xs md:text-sm leading-tight">${u.short}</h4>
+                <button type="button" data-id="${u.id}" class="unit-pick${i === 0 ? ' is-current' : ''}">
+                    <span>${u.badge}</span>
+                    <strong>${u.short}</strong>
                 </button>
             `).join('');
 
-            document.querySelectorAll('.unit-card').forEach(card => {
+            nav.querySelectorAll('.unit-pick').forEach(card => {
                 card.addEventListener('click', () => {
-                    const id = card.getAttribute('data-id');
-                    const u = unidades.find(item => item.id === id);
+                    const u = unidades.find(item => item.id === card.getAttribute('data-id'));
                     if (!u) return;
-
-                    document.querySelectorAll('.unit-card').forEach(c => c.classList.remove('active-card'));
-                    card.classList.add('active-card');
-
+                    nav.querySelectorAll('.unit-pick').forEach(c => c.classList.remove('is-current'));
+                    card.classList.add('is-current');
                     iconEl.textContent = u.icon;
                     badgeEl.textContent = `Unidad Didáctica ${u.badge.replace('UD', '')}`;
                     titleEl.textContent = u.title;
@@ -234,5 +139,6 @@
 
         document.addEventListener('DOMContentLoaded', renderNav);
     </script>
+    <script src="assets/nav.js"></script>
 </body>
 </html>

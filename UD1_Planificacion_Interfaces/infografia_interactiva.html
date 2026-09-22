@@ -4,111 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tema 1: Planificación de una Interfaz Gráfica | DIWEB</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-            min-height: 100vh;
-        }
-        .active-card {
-            border-color: #3b82f6 !important;
-            box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.3), 0 8px 10px -6px rgba(59, 130, 246, 0.2) !important;
-            transform: translateY(-4px) scale(1.02);
-            background: linear-gradient(to bottom, #ffffff, #eff6ff);
-        }
-        .topic-card {
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-    </style>
+    <script>document.documentElement.classList.add("site")</script>
+    <link rel="stylesheet" href="../assets/site.css">
 </head>
-<body class="text-slate-800 antialiased pt-16 px-4 pb-16 md:pt-16 md:px-8">
-<!-- DIWEB Topbar -->
-<style>
-#diweb-nav{position:fixed;top:0;left:0;right:0;height:52px;background:rgba(15,23,42,0.97);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:space-between;padding:0 1.25rem;z-index:99999;font-family:'Inter',system-ui,sans-serif;box-shadow:0 1px 0 rgba(255,255,255,0.07),0 2px 20px rgba(0,0,0,0.35);}#diweb-nav a{text-decoration:none;}.dnav-brand{display:flex;align-items:center;gap:8px;flex-shrink:0;}.dnav-logo{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;letter-spacing:-0.5px;flex-shrink:0;}.dnav-name{font-size:0.85rem;font-weight:700;color:#f1f5f9;}.dnav-crumb{display:flex;align-items:center;gap:5px;font-size:0.72rem;color:#64748b;flex:1;justify-content:center;overflow:hidden;padding:0 0.5rem;}.dnav-crumb a{color:#64748b;}.dnav-crumb a:hover{color:#cbd5e1;}.dnav-sep{color:#334155;}.dnav-cur{color:#cbd5e1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;}.dnav-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}.dnav-gh{display:flex;align-items:center;gap:5px;color:#64748b;font-size:0.72rem;font-weight:500;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,0.05);transition:all 0.15s;}.dnav-gh:hover{color:#f1f5f9;background:rgba(255,255,255,0.1);}.dnav-gh svg{width:14px;height:14px;fill:currentColor;flex-shrink:0;}@media(max-width:480px){.dnav-gh span{display:none;}.dnav-cur{max-width:100px;}}
-</style>
-<nav id="diweb-nav">
-  <a href="../index.html" class="dnav-brand"><div class="dnav-logo">D</div><span class="dnav-name">DIWEB</span></a>
-  <div class="dnav-crumb">
-    <a href="../index.html">Inicio</a><span class="dnav-sep">›</span>
-    <a href="index.html">UD1</a><span class="dnav-sep">›</span>
-    <span class="dnav-cur">13 Puntos Clave de Planificación</span>
-  </div>
-  <div class="dnav-actions">
-    <a href="https://github.com/hljagonzalez/APUNTES-DIWEB-CURSO-26-27" target="_blank" class="dnav-gh">
-      <svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-      <span>GitHub</span>
-    </a>
-  </div>
-</nav>
-<div style="height:52px"></div>
-<!-- /DIWEB Topbar -->
-
-    <main class="max-w-6xl mx-auto">
-        <!-- Header -->
-        <header class="text-center mb-12">
-            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold mb-4 tracking-wide uppercase">
-                DIWEB • 2º DAW • Curso 2026/2027
-            </div>
-            <h1 class="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-4">
-                Tema 1: Planificación de una Interfaz Gráfica
-            </h1>
-            <p class="max-w-3xl mx-auto text-base md:text-lg text-slate-600 leading-relaxed">
-                Antes de escribir una sola línea de código, el diseño de una interfaz web comienza en la fase de planificación.
-                Exploramos los principios fundamentales para sentar las bases de cualquier proyecto: desde la percepción visual
-                y la interacción persona-ordenador hasta la arquitectura de información, guías de estilo y prototipado.
-            </p>
+<body>
+    <main class="page">
+        <header class="mast">
+            <p class="kicker">DIWEB · 2º DAW · Curso 2026/2027</p>
+            <h1>Tema 1: Planificación de una Interfaz Gráfica</h1>
+            <p class="byline">Antes de escribir una sola línea de código, el diseño de una interfaz web comienza en la fase de planificación. Exploramos los principios fundamentales para sentar las bases de cualquier proyecto: desde la percepción visual y la interacción persona-ordenador hasta la arquitectura de información, guías de estilo y prototipado.</p>
         </header>
 
-        <!-- Detalle Activo Superior -->
-        <section id="topic-details" class="mb-12 bg-white rounded-2xl shadow-xl p-6 md:p-8 border border-slate-200 transition-all duration-300">
-            <div class="flex flex-col md:flex-row items-center md:items-start gap-6">
-                <div id="topic-icon" class="text-5xl md:text-6xl p-4 bg-blue-50 rounded-2xl border border-blue-100 flex-shrink-0">
-                    👀
-                </div>
-                <div class="flex-1 text-center md:text-left">
-                    <div class="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-2">
-                        <span id="topic-badge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
-                            Bloque 01
-                        </span>
-                        <span id="topic-tag" class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
-                            Fundamento Visual
-                        </span>
-                    </div>
-                    <h3 id="topic-title" class="text-2xl md:text-3xl font-bold text-slate-900 mb-3">
-                        Elementos del diseño: percepción visual
-                    </h3>
-                    <p id="topic-description" class="text-slate-600 text-base md:text-lg leading-relaxed mb-4">
-                        Explora cómo el cerebro humano interpreta lo que ve. Aprenderemos a aplicar principios como la Gestalt para crear diseños que sean intuitivos y fáciles de procesar para el usuario.
-                    </p>
-                    <div id="topic-keys" class="flex flex-wrap gap-2 justify-center md:justify-start">
-                        <span class="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-md">Leyes de la Gestalt</span>
-                        <span class="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-md">Jerarquía visual</span>
-                        <span class="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-md">Carga cognitiva</span>
-                    </div>
+        <article class="detail topic-detail" id="topic-details">
+            <div class="detail-icon" id="topic-icon" aria-hidden="true">👀</div>
+            <div>
+                <span class="badge" id="topic-badge">Bloque 01</span>
+                <span class="badge" id="topic-tag">Fundamento Visual</span>
+                <h2 id="topic-title">Elementos del diseño: percepción visual</h2>
+                <p id="topic-description">Explora cómo el cerebro humano interpreta lo que ve. Aprenderemos a aplicar principios como la Gestalt para crear diseños que sean intuitivos y fáciles de procesar para el usuario.</p>
+                <div class="chips" id="topic-keys">
+                    <span>Leyes de la Gestalt</span>
+                    <span>Jerarquía visual</span>
+                    <span>Carga cognitiva</span>
                 </div>
             </div>
-        </section>
+        </article>
 
-        <!-- Grid de los 13 Puntos Clave -->
-        <section class="mb-12">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-2xl font-bold text-slate-900">Puntos Clave del Tema (13 Bloques)</h2>
-                <span class="text-sm text-slate-500 font-medium">Haz clic en cada tarjeta para explorar</span>
-            </div>
+        <div class="topic-head">
+            <h2>Puntos clave del tema (13 bloques)</h2>
+            <p class="section-note">Haz clic en cada tarjeta para explorar</p>
+        </div>
+        <div id="topic-grid" class="topics"></div>
 
-            <div id="topic-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                <!-- Tarjetas dinámicas generadas por JS -->
-            </div>
-        </section>
-
-        <!-- Footer -->
-        <footer class="text-center py-8 border-t border-slate-200 text-slate-500 text-sm">
+        <footer class="colophon">
             <p>© 2026/2027 Diseño de Interfaces Web (DIWEB) | Material docente</p>
-            <p class="mt-1">IES Hermenegildo Lanz • Formación Profesional de Grado Superior</p>
+            <p>IES Hermenegildo Lanz • Formación Profesional de Grado Superior</p>
         </footer>
     </main>
 
@@ -243,31 +173,27 @@
 
         function renderGrid() {
             grid.innerHTML = topics.map((topic, index) => `
-                <div data-id="${topic.id}" tabindex="0" role="button" aria-label="${topic.title}"
-                     class="topic-card bg-white rounded-xl shadow-sm hover:shadow-md p-5 flex flex-col items-center text-center border-2 border-slate-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400 ${index === 0 ? 'active-card' : ''}">
-                    <span class="text-3xl mb-3">${topic.icon}</span>
-                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Bloque ${topic.num}</span>
-                    <h3 class="text-sm font-semibold text-slate-800 leading-snug line-clamp-2">${topic.title}</h3>
-                </div>
+                <button type="button" data-id="${topic.id}" class="topic${index === 0 ? ' is-current' : ''}" aria-label="${topic.title}">
+                    <span class="topic-num">${topic.num}</span>
+                    <span aria-hidden="true">${topic.icon}</span>
+                    <span>${topic.title}</span>
+                </button>
             `).join('');
 
-            document.querySelectorAll('.topic-card').forEach(card => {
+            grid.querySelectorAll('.topic').forEach(card => {
                 const selectCard = () => {
-                    const id = card.getAttribute('data-id');
-                    const topic = topics.find(t => t.id === id);
+                    const topic = topics.find(t => t.id === card.getAttribute('data-id'));
                     if (!topic) return;
 
-                    document.querySelectorAll('.topic-card').forEach(c => c.classList.remove('active-card'));
-                    card.classList.add('active-card');
+                    grid.querySelectorAll('.topic').forEach(c => c.classList.remove('is-current'));
+                    card.classList.add('is-current');
 
                     detailIcon.textContent = topic.icon;
                     detailBadge.textContent = `Bloque ${topic.num}`;
                     detailTag.textContent = topic.category;
                     detailTitle.textContent = topic.title;
                     detailDesc.textContent = topic.description;
-                    detailKeys.innerHTML = topic.keywords.map(k => `
-                        <span class="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md font-medium">${k}</span>
-                    `).join('');
+                    detailKeys.innerHTML = topic.keywords.map(k => `<span>${k}</span>`).join('');
 
                     document.getElementById('topic-details').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 };
@@ -284,19 +210,6 @@
 
         document.addEventListener('DOMContentLoaded', renderGrid);
     </script>
-<!-- DIWEB Bottom Nav -->
-<div style="height:64px"></div>
-<style>
-#diweb-bnav{position:fixed;bottom:0;left:0;right:0;height:56px;background:rgba(255,255,255,0.97);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;padding:0 1rem;z-index:99999;font-family:'Inter',system-ui,sans-serif;box-shadow:0 -4px 20px rgba(0,0,0,0.07);gap:8px;}#diweb-bnav a{display:inline-flex;align-items:center;gap:5px;font-size:0.78rem;font-weight:600;text-decoration:none;padding:7px 14px;border-radius:9px;transition:all 0.15s;white-space:nowrap;}.dbnav-prev{color:#475569;background:#f1f5f9;}.dbnav-prev:hover{background:#e2e8f0;color:#1e293b;}.dbnav-idx{color:#2563eb;background:#eff6ff;}.dbnav-idx:hover{background:#dbeafe;}.dbnav-next{color:#fff;background:#2563eb;}.dbnav-next:hover{background:#1d4ed8;}.dbnav-disabled{opacity:0.35;pointer-events:none;}.dbnav-center{display:flex;flex-direction:column;align-items:center;gap:2px;}.dbnav-label{color:#94a3b8;font-size:0.65rem;font-weight:500;font-family:'Inter',system-ui,sans-serif;}@media(max-width:480px){.dbnav-label{display:none;}}
-</style>
-<nav id="diweb-bnav">
-  <a href="#" class="dbnav-prev dbnav-disabled">← </a>
-  <div class="dbnav-center">
-    <span class="dbnav-label">1 / 8</span>
-    <a href="index.html" class="dbnav-idx">↑ UD1</a>
-  </div>
-  <a href="guia_paletas_color.html" class="dbnav-next">Paletas de Color →</a>
-</nav>
-<!-- /DIWEB Bottom Nav -->
+    <script src="../assets/nav.js"></script>
 </body>
 </html>

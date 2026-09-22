@@ -1,0 +1,835 @@
+/*
+  Capa de integración para las lecciones de la UD1 (recursos 2 a 8).
+  Solo toca el envoltorio de cada página. Las demostraciones (paletas,
+  mockups, botones, escalas, grids…) conservan sus estilos originales.
+*/
+
+html.leccion {
+  --tint: #f7f1e8;
+  --tint-warn: #fbf2dc;
+  --warn: #a8741a;
+  --warn-ink: #6f4c0f;
+  --tint-ok: #edf4ec;
+  --ok: #3f7a4f;
+  --ok-ink: #2d5e3b;
+  --tint-info: #edf1f3;
+  --info: #4a6275;
+  --info-ink: #34495a;
+  --tint-danger: #f6e7e3;
+  --demo-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --col: 62rem;
+  background: var(--paper);
+}
+
+html.leccion body {
+  background: var(--paper) !important;
+  color: var(--ink);
+  overflow-x: clip;
+}
+
+html.leccion-sans body {
+  font-family: var(--sans) !important;
+}
+
+/* Las demos que heredaban la fuente del sistema la mantienen */
+html.l-paletas .demo-app,
+html.l-paletas .demo-app-pink,
+html.l-paletas .final-demo,
+html.l-grids .layout-example,
+html.l-iconos .usage-demo {
+  font-family: var(--demo-font);
+}
+
+/* ——— Cabecera de la lección ——— */
+html.leccion .main-header,
+html.l-maquetacion .container > header {
+  box-sizing: border-box;
+  max-width: var(--col);
+  margin: 0 auto !important;
+  padding: 3.2rem 1.5rem 1.4rem !important;
+  background: none !important;
+  color: var(--ink) !important;
+  text-align: left !important;
+  box-shadow: none !important;
+}
+
+html.leccion .main-header h1,
+html.l-maquetacion .container > header h1 {
+  margin: 0 0 0.8rem !important;
+  color: var(--ink) !important;
+  font-family: var(--serif) !important;
+  font-weight: 660 !important;
+  font-size: clamp(2.2rem, 4.5vw, 3.3rem) !important;
+  line-height: 1.08 !important;
+  letter-spacing: -0.02em;
+  text-shadow: none !important;
+}
+
+html.leccion .main-header p,
+html.l-maquetacion .container > header p {
+  max-width: 44rem;
+  margin: 0 !important;
+  color: var(--muted) !important;
+  font-size: 1.15rem !important;
+  line-height: 1.5 !important;
+  opacity: 1 !important;
+}
+
+html.leccion .main-header .leccion-kicker,
+html.l-maquetacion .container > header .leccion-kicker {
+  margin: 0 0 0.8rem !important;
+  color: var(--accent) !important;
+  font-family: var(--sans);
+  font-size: 0.78rem !important;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* ——— Columna de contenido ——— */
+html.leccion .main-header ~ .container,
+html.l-botones .main-header + .max-w-6xl,
+html.l-figma main.max-w-4xl {
+  box-sizing: border-box;
+  max-width: var(--col) !important;
+  margin: 0 auto;
+  padding: 0.5rem 1.5rem 3rem !important;
+}
+
+/* ——— Secciones como hojas ——— */
+html.leccion .section,
+html.l-figma main > section {
+  background: var(--sheet) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 2.2rem 2.2rem 2.4rem !important;
+  margin: 1.5rem 0 !important;
+}
+
+html.leccion .section-title,
+html.leccion .section > h2,
+html.l-figma main > section > h2 {
+  color: var(--ink);
+  font-family: var(--serif) !important;
+  font-weight: 560 !important;
+  font-size: clamp(1.6rem, 3vw, 2rem) !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.01em;
+}
+
+html.leccion .section-title > span[style] {
+  font-size: 1.5rem !important;
+}
+
+html.leccion .section-subtitle {
+  color: var(--muted) !important;
+  font-size: 1.05rem !important;
+  margin-bottom: 1.8rem !important;
+}
+
+html.leccion .section > h3[style],
+html.leccion .section h3.figma-title,
+html.leccion .checklist-title,
+html.leccion .figma-title {
+  color: var(--ink) !important;
+  font-family: var(--serif) !important;
+  font-weight: 560 !important;
+}
+
+/* Bloques de resumen con fondo de color y texto blanco: pasan a tinta */
+html.leccion .section[style*="color: white"] {
+  background: var(--nav) !important;
+  border-color: var(--nav) !important;
+  color: var(--nav-text) !important;
+}
+
+html.leccion .section[style*="color: white"] [style*="rgba(255,255,255"] {
+  border-radius: 0 !important;
+  backdrop-filter: none !important;
+}
+
+/* ——— Cajas de consejo / aviso ——— */
+html.leccion .tip-box,
+html.leccion .info-box,
+html.leccion .section div[style*="border-left"][style*="border-radius: 0"] {
+  background: var(--tint) !important;
+  border: 0 !important;
+  border-left: 3px solid var(--accent) !important;
+  border-radius: 0 !important;
+}
+
+html.leccion .tip-title,
+html.leccion .section div[style*="border-left"][style*="border-radius: 0"] h4 {
+  color: var(--accent-deep) !important;
+}
+
+html.leccion .tip-text,
+html.leccion .section div[style*="border-left"][style*="border-radius: 0"] ul {
+  color: var(--ink) !important;
+}
+
+html.leccion .tip-warning,
+html.leccion .warning-box {
+  background: var(--tint-warn) !important;
+  border: 0 !important;
+  border-left: 3px solid var(--warn) !important;
+  border-radius: 0 !important;
+}
+
+html.leccion .tip-warning .tip-title {
+  color: var(--warn-ink) !important;
+}
+
+html.leccion .tip-success,
+html.leccion .success-box {
+  background: var(--tint-ok) !important;
+  border: 0 !important;
+  border-left: 3px solid var(--ok) !important;
+  border-radius: 0 !important;
+}
+
+html.leccion .tip-success .tip-title {
+  color: var(--ok-ink) !important;
+}
+
+html.leccion .tip-info {
+  background: var(--tint-info) !important;
+  border-left-color: var(--info) !important;
+}
+
+html.leccion .tip-info .tip-title {
+  color: var(--info-ink) !important;
+}
+
+html.leccion .danger-box {
+  background: var(--tint-danger) !important;
+  border: 0 !important;
+  border-left: 3px solid var(--accent) !important;
+  border-radius: 0 !important;
+}
+
+html.leccion .tip-warning .tip-text,
+html.leccion .tip-success .tip-text,
+html.leccion .tip-info .tip-text {
+  color: var(--ink) !important;
+}
+
+/* ——— Piezas repetidas del envoltorio ——— */
+html.leccion .step-number,
+html.leccion .check-icon:not(.library-features *) {
+  background: var(--accent) !important;
+  color: #fffdf8 !important;
+  border-radius: 0 !important;
+}
+
+html.leccion .divider {
+  height: 1px !important;
+  background: var(--line) !important;
+  border-radius: 0 !important;
+  margin: 2.5rem 0 !important;
+}
+
+html.leccion .tool-card {
+  background: var(--tint) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+html.leccion .tool-card:hover {
+  border-color: var(--accent) !important;
+}
+
+html.leccion .tool-name {
+  color: var(--ink) !important;
+}
+
+html.leccion .tool-desc {
+  color: var(--muted) !important;
+}
+
+html.leccion .tool-link {
+  background: transparent !important;
+  color: var(--accent) !important;
+  box-shadow: inset 0 0 0 1px var(--accent);
+  border-radius: 0 !important;
+}
+
+html.leccion .tool-link:hover {
+  background: var(--accent) !important;
+  color: #fffdf8 !important;
+}
+
+html.leccion .checklist {
+  background: var(--tint) !important;
+  border-radius: 0 !important;
+}
+
+html.leccion .checklist-item {
+  background: var(--sheet) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+}
+
+html.leccion .figma-config {
+  background: var(--tint) !important;
+  border: 0 !important;
+  border-left: 3px solid var(--accent) !important;
+  border-radius: 0 !important;
+}
+
+html.leccion .figma-step {
+  background: var(--sheet) !important;
+  border: 1px solid var(--line) !important;
+  border-left: 3px solid var(--accent) !important;
+  border-radius: 0 !important;
+}
+
+html.leccion .step-title {
+  color: var(--ink) !important;
+  font-family: var(--serif);
+  font-weight: 560 !important;
+}
+
+html.leccion .step-text,
+html.leccion .step-content {
+  color: var(--ink) !important;
+}
+
+html.leccion .step-details {
+  color: var(--muted) !important;
+}
+
+html.leccion .usage-item {
+  background: var(--tint) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+}
+
+/* Avisos definidos en línea (azul informativo y ámbar de advertencia) */
+html.leccion .section div[style*="border: 3px solid #3b82f6"] {
+  background: var(--tint-info) !important;
+  border: 0 !important;
+  border-left: 3px solid var(--info) !important;
+  border-radius: 0 !important;
+}
+
+html.leccion .section div[style*="border: 3px solid #f59e0b"] {
+  background: var(--tint-warn) !important;
+  border: 0 !important;
+  border-left: 3px solid var(--warn) !important;
+  border-radius: 0 !important;
+}
+
+html.leccion .section div[style*="border: 3px solid #3b82f6"] [style*="color"],
+html.leccion .section div[style*="border: 3px solid #f59e0b"] [style*="color"] {
+  color: var(--ink) !important;
+}
+
+html.leccion .section div[style*="border: 3px solid #3b82f6"] > [style*="font-weight: 700"] {
+  color: var(--info-ink) !important;
+}
+
+html.leccion .section div[style*="border: 3px solid #f59e0b"] > h3,
+html.leccion .section div[style*="border: 3px solid #f59e0b"] > [style*="font-weight: 700"] {
+  color: var(--warn-ink) !important;
+}
+
+html.leccion .section div[style*="border: 3px solid #f59e0b"] div[style*="background: white"] {
+  border-radius: 0 !important;
+}
+
+/* ——— Tipografía ——— */
+html.l-tipografia .type-item {
+  background: var(--tint) !important;
+  border-left: 3px solid var(--accent) !important;
+  border-radius: 0 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+html.l-tipografia .font-option {
+  background: var(--sheet) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+html.l-tipografia .font-option:hover {
+  border-color: var(--accent) !important;
+}
+
+html.l-tipografia .font-option-title {
+  color: var(--ink) !important;
+}
+
+html.l-tipografia .best-for,
+html.l-tipografia .type-usage {
+  background: var(--sheet) !important;
+  color: var(--muted) !important;
+  border-radius: 0 !important;
+}
+
+html.l-tipografia .best-for {
+  background: var(--tint) !important;
+}
+
+html.l-tipografia .best-for strong,
+html.l-tipografia .type-usage strong {
+  color: var(--ink) !important;
+}
+
+html.l-tipografia .type-name,
+html.l-tipografia .weight-demo {
+  color: var(--accent) !important;
+}
+
+html.l-tipografia .reference-table {
+  border: 1px solid var(--line);
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+html.l-tipografia .reference-table thead {
+  background: var(--tint) !important;
+}
+
+html.l-tipografia .reference-table th {
+  color: var(--ink) !important;
+  border-bottom-color: var(--line) !important;
+}
+
+html.l-tipografia .section[style*="#3b82f6"] h2 {
+  color: var(--ink) !important;
+  text-align: left !important;
+}
+
+html.l-tipografia .section[style*="#3b82f6"] [style*="border-left"] {
+  background: var(--tint) !important;
+  border-left: 3px solid var(--accent) !important;
+  border-radius: 0 !important;
+}
+
+html.l-tipografia .section[style*="#3b82f6"] h4 {
+  color: var(--ink) !important;
+}
+
+html.l-tipografia .section[style*="#3b82f6"] p {
+  color: var(--muted) !important;
+}
+
+/* ——— Grids ——— */
+html.l-grids .intro-grid .intro-box {
+  background: var(--tint) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+}
+
+html.l-grids .intro-grid .intro-title {
+  color: var(--ink) !important;
+  font-family: var(--serif);
+  font-weight: 560 !important;
+}
+
+html.l-grids .intro-grid .intro-text {
+  color: var(--muted) !important;
+}
+
+/* Tarjetas de «Cuándo usar cada tamaño»: el borde verde marca la recomendada */
+html.l-grids .section div[style*="background: #f9fafb; border: 2px solid"] {
+  background: var(--tint) !important;
+  border-width: 1px !important;
+  border-radius: 0 !important;
+}
+
+html.l-grids .section div[style*="background: #f9fafb; border: 2px solid #e5e7eb"] {
+  border-color: var(--line) !important;
+}
+
+/* ——— Iconografía ——— */
+html.l-iconos .library-grid > div[style*="gradient"] {
+  background: var(--tint) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+}
+
+html.l-iconos .library-grid > div[style*="gradient"] h3 {
+  color: var(--ink) !important;
+  font-family: var(--serif);
+  font-weight: 560 !important;
+}
+
+html.l-iconos .library-grid > div[style*="gradient"] p {
+  color: var(--muted) !important;
+}
+
+html.l-iconos .library-card {
+  background: var(--tint) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+html.l-iconos .library-card.recommended {
+  background: #f8f1ea !important;
+  border: 1px solid var(--accent) !important;
+}
+
+html.l-iconos .recommended-badge {
+  background: var(--accent) !important;
+  border-radius: 0 !important;
+}
+
+html.l-iconos .library-name {
+  font-family: var(--serif);
+  font-weight: 560 !important;
+  color: var(--ink) !important;
+}
+
+html.l-iconos .style-card,
+html.l-iconos .size-row,
+html.l-iconos .usage-example {
+  background: var(--sheet) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+}
+
+html.l-iconos .usage-header {
+  background: var(--nav) !important;
+  color: var(--nav-text) !important;
+}
+
+/* ——— Maquetación y plantillas ——— */
+html.l-maquetacion .container {
+  max-width: var(--col) !important;
+  margin: 0 auto;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html.l-maquetacion .container > nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  margin: 0 1.5rem;
+  padding: 0.7rem 0 !important;
+  background: rgba(243, 239, 230, 0.96) !important;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  box-shadow: none !important;
+}
+
+html.l-maquetacion .container > nav li {
+  margin: 0 !important;
+}
+
+html.l-maquetacion .container > nav ul {
+  margin: 0 !important;
+  padding: 0 !important;
+  justify-content: flex-start !important;
+  gap: 0.4rem 1.3rem !important;
+}
+
+html.l-maquetacion .container > nav a {
+  color: var(--ink) !important;
+  font-size: 0.95rem;
+  font-weight: 600 !important;
+}
+
+html.l-maquetacion .container > nav a:hover {
+  color: var(--accent) !important;
+}
+
+html.l-maquetacion main {
+  padding: 0.5rem 1.5rem 2rem !important;
+}
+
+html.l-maquetacion main > section {
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  padding: 2.2rem 2.2rem 2.4rem;
+  margin: 1.5rem 0 !important;
+}
+
+html.l-maquetacion main > section > h2:first-child {
+  margin-top: 0 !important;
+}
+
+html.l-maquetacion main li {
+  color: var(--muted) !important;
+}
+
+html.l-maquetacion main h2 {
+  color: var(--ink) !important;
+  font-family: var(--serif);
+  font-weight: 560 !important;
+  font-size: clamp(1.7rem, 3vw, 2.1rem) !important;
+  line-height: 1.15;
+  border-bottom: 1px solid var(--line) !important;
+}
+
+html.l-maquetacion main h3 {
+  color: var(--ink) !important;
+  font-family: var(--serif);
+  font-weight: 560 !important;
+}
+
+html.l-maquetacion main h4 {
+  color: var(--ink) !important;
+}
+
+html.l-maquetacion main p {
+  color: var(--muted) !important;
+}
+
+html.l-maquetacion .feature-card {
+  background: var(--sheet) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+html.l-maquetacion .feature-card:hover {
+  border-color: var(--accent) !important;
+}
+
+html.l-maquetacion .feature-card h4 {
+  color: var(--accent) !important;
+}
+
+html.l-maquetacion .process-step {
+  background: var(--nav) !important;
+  color: var(--nav-text) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+html.l-maquetacion .process-arrow {
+  color: var(--accent) !important;
+}
+
+html.l-maquetacion .code-block {
+  background: var(--nav) !important;
+  color: var(--nav-text) !important;
+  border-radius: 0 !important;
+}
+
+html.l-maquetacion .diagram-box {
+  background: var(--sheet) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+}
+
+html.l-maquetacion main table {
+  border: 1px solid var(--line);
+  box-shadow: none !important;
+  background: var(--sheet);
+}
+
+html.l-maquetacion main table thead {
+  background: var(--nav) !important;
+  color: var(--nav-text) !important;
+}
+
+html.l-maquetacion main table th,
+html.l-maquetacion main table td {
+  border-bottom-color: var(--line) !important;
+}
+
+html.l-maquetacion .checklist li::before,
+html.l-maquetacion .resources-list a {
+  color: var(--accent) !important;
+}
+
+html.l-maquetacion .container > footer {
+  margin: 0 1.5rem;
+  padding: 1rem 0 2rem !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+  text-align: left !important;
+  border-top: 1px solid var(--line);
+}
+
+html.l-maquetacion .container > footer p {
+  color: var(--muted) !important;
+}
+
+/* ——— Colaboración en Figma ——— */
+html.l-figma main h3 {
+  font-family: var(--serif);
+  font-weight: 560 !important;
+}
+
+html.l-figma main .rounded,
+html.l-figma main .rounded-lg,
+html.l-figma main .rounded-xl,
+html.l-figma main .rounded-2xl {
+  border-radius: 0 !important;
+}
+
+html.l-figma main .bg-slate-50,
+html.l-figma main .bg-purple-50\/40 {
+  background: var(--tint) !important;
+}
+
+html.l-figma main .bg-slate-200 {
+  background: #ebe3d6 !important;
+}
+
+html.l-figma main .border-slate-200,
+html.l-figma main .border-purple-200,
+html.l-figma main .border-purple-100 {
+  border-color: var(--line) !important;
+}
+
+html.l-figma main .text-purple-600,
+html.l-figma main .text-purple-700 {
+  color: var(--accent) !important;
+}
+
+html.l-figma main .text-blue-700 {
+  color: var(--info-ink) !important;
+}
+
+html.l-figma main .text-emerald-700 {
+  color: var(--ok-ink) !important;
+}
+
+/* ——— Sistema de botones ——— */
+html.l-botones .main-header + .max-w-6xl > section:not(:has(> .intro-box)) {
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  padding: 2.2rem 2.2rem 2.4rem;
+  margin: 1.5rem 0 !important;
+}
+
+html.l-botones .main-header ~ div h2 {
+  margin: 0 0 1.2rem !important;
+  padding-bottom: 0 !important;
+  color: var(--ink) !important;
+  font-family: var(--serif);
+  font-weight: 560 !important;
+  font-size: clamp(1.6rem, 3vw, 2rem) !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.01em;
+  border-bottom: 0 !important;
+}
+
+html.l-botones .main-header ~ div h3 {
+  margin-top: 1.8rem !important;
+  color: var(--ink) !important;
+  font-family: var(--serif);
+  font-weight: 560 !important;
+  font-size: 1.25rem !important;
+}
+
+html.l-botones .main-header ~ div .example-card > h3:first-child {
+  margin-top: 0 !important;
+}
+
+html.l-botones .main-header ~ div .intro-box h2 {
+  color: var(--nav-text) !important;
+}
+
+html.l-botones .intro-box {
+  background: var(--nav) !important;
+  color: var(--nav-text) !important;
+  border-radius: 0 !important;
+}
+
+html.l-botones .info-box .text-blue-900,
+html.l-botones .info-box .text-blue-800 {
+  color: var(--ink) !important;
+}
+
+html.l-botones .warning-box .text-amber-900,
+html.l-botones .warning-box .text-amber-800 {
+  color: var(--warn-ink) !important;
+}
+
+html.l-botones .example-card {
+  background: var(--sheet) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+html.l-botones .main-header ~ div table {
+  border: 1px solid var(--line);
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: var(--sheet) !important;
+}
+
+html.l-botones .main-header ~ div th {
+  background: var(--tint) !important;
+  color: var(--ink) !important;
+  border-bottom-color: var(--line) !important;
+}
+
+html.l-botones .main-header ~ div td {
+  border-bottom-color: var(--line) !important;
+}
+
+html.l-botones .main-header ~ div code {
+  background: #efe7da !important;
+  color: var(--accent-deep) !important;
+  border-radius: 0 !important;
+}
+
+/* ——— Móvil ——— */
+@media (max-width: 700px) {
+  html.leccion .main-header,
+  html.l-maquetacion .container > header {
+    padding: 2rem 1.1rem 1rem !important;
+  }
+
+  html.leccion .main-header ~ .container,
+  html.l-botones .main-header + .max-w-6xl,
+  html.l-figma main.max-w-4xl {
+    padding: 0.25rem 1.1rem 2rem !important;
+  }
+
+  html.leccion .section,
+  html.l-figma main > section,
+  html.l-maquetacion main > section,
+  html.l-botones .main-header + .max-w-6xl > section:not(:has(> .intro-box)) {
+    padding: 1.4rem 1.1rem 1.6rem !important;
+  }
+
+  html.l-maquetacion main {
+    padding: 1.5rem 1.1rem 2rem !important;
+  }
+
+  html.l-maquetacion .container > nav,
+  html.l-maquetacion .container > footer {
+    margin: 0 1.1rem;
+  }
+
+  html.l-maquetacion main table,
+  html.l-tipografia .reference-table,
+  html.l-botones .main-header ~ div table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  html.l-maquetacion .container > nav ul {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 1.1rem !important;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+  }
+}
+
+@media (max-width: 899px) {
+  html.l-maquetacion .container > nav {
+    top: 3.4rem;
+  }
+}

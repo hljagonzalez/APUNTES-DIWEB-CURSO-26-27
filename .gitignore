@@ -7,6 +7,10 @@ raw/
 descargas/
 downloads/
 
+# Material privado del profesor (no se publica)
+sesiones/
+anterior/
+
 # Carpetas de recursos asociadas a páginas web descargadas
 *_files/
 *_files
