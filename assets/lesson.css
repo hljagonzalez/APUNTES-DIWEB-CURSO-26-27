@@ -21,6 +21,11 @@ html.leccion {
   background: var(--paper);
 }
 
+/* Con el menú plegado, las lecciones recuperan el ancho de las páginas originales */
+html.leccion.nav-collapsed {
+  --col: 75rem;
+}
+
 html.leccion body {
   background: var(--paper) !important;
   color: var(--ink);
